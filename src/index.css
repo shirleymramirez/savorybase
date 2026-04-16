@@ -1,0 +1,28 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color: #383833;
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.96), transparent 34%),
+    linear-gradient(180deg, #f7f7f5 0%, #ecece8 100%);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+input[type="range"] {
+  accent-color: #565650;
+}
