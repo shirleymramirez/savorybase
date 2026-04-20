@@ -9,9 +9,9 @@ function HeaderSection({ itemCount, activeCount, averagePrice }: HeaderSectionPr
     <header className="overflow-hidden rounded-[32px] border border-white/70 bg-white/80 shadow-soft backdrop-blur">
       <div className="grid gap-6 px-6 py-8 lg:grid-cols-[1.4fr_1fr] lg:px-8">
         <div>
-          <p className="text-sm uppercase tracking-[0.28em] text-mist-500">SavoryBase CMS</p>
+          <p className="text-sm uppercase tracking-[0.28em] text-mist-500">SavoryBase</p>
           <h1 className="mt-3 max-w-2xl font-serif text-4xl leading-tight text-mist-900 sm:text-5xl">
-            Clean menu management for modern food websites.
+            Food Service Management
           </h1>
           <p className="mt-4 max-w-2xl text-sm leading-6 text-mist-600 sm:text-base">
             Create polished food listings with image framing, dietary tags, pricing, inventory

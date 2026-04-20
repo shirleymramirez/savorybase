@@ -46,7 +46,7 @@ function ItemBuilderSection({
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-sm uppercase tracking-[0.22em] text-mist-500">Item Builder</p>
-            <h2 className="mt-2 font-serif text-3xl text-mist-900">Food Data Input</h2>
+            <h2 className="mt-2 font-serif text-3xl text-mist-900">Food Data Entry</h2>
           </div>
           <button
             className="rounded-full border border-mist-300 px-4 py-2 text-sm font-medium text-mist-700 transition hover:border-mist-500 hover:text-mist-900"
