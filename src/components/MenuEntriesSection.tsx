@@ -4,6 +4,7 @@ type MenuEntriesSectionProps = {
   items: FoodItem[];
   selectedIds: number[];
   onSelectAll: () => void;
+  onDeselectAll: () => void;
   onToggleSelection: (id: number) => void;
 };
 
@@ -11,8 +12,11 @@ function MenuEntriesSection({
   items,
   selectedIds,
   onSelectAll,
+  onDeselectAll,
   onToggleSelection,
 }: MenuEntriesSectionProps) {
+  const allItemsSelected = items.length > 0 && selectedIds.length === items.length;
+
   return (
     <section className="rounded-[28px] border border-white/70 bg-white/85 p-5 shadow-soft backdrop-blur sm:p-6">
       <div className="flex items-end justify-between gap-3">
@@ -20,13 +24,23 @@ function MenuEntriesSection({
           <p className="text-sm uppercase tracking-[0.22em] text-mist-500">Menu Entries</p>
           <h2 className="mt-2 font-serif text-3xl text-mist-900">Current Items</h2>
         </div>
-        <button
-          type="button"
-          className="text-sm font-medium text-mist-600 transition hover:text-mist-900"
-          onClick={onSelectAll}
-        >
-          Select All
-        </button>
+        {allItemsSelected ? (
+          <button
+            type="button"
+            className="text-sm font-medium text-mist-600 transition hover:text-mist-900"
+            onClick={onDeselectAll}
+          >
+            Deselect All
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="text-sm font-medium text-mist-600 transition hover:text-mist-900"
+            onClick={onSelectAll}
+          >
+            Select All
+          </button>
+        )}
       </div>
 
       <div className="mt-5 space-y-3">

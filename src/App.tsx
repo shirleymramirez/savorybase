@@ -189,6 +189,27 @@ function App() {
     );
   };
 
+  const updateItem = (
+    id: number,
+    updates: Pick<FoodItem, "name" | "description" | "price" | "categories" | "active">,
+  ) => {
+    setItems((current) =>
+      current.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              ...updates,
+              stock: updates.active
+                ? item.stock === "Sold Out"
+                  ? "In Stock"
+                  : item.stock
+                : "Sold Out",
+            }
+          : item,
+      ),
+    );
+  };
+
   const selectedItems = items.filter((item) => selectedIds.includes(item.id));
 
   return (
@@ -237,6 +258,13 @@ function App() {
           />
 
           <aside className="space-y-6">
+            <MenuEntriesSection
+              items={items}
+              selectedIds={selectedIds}
+              onSelectAll={() => setSelectedIds(items.map((item) => item.id))}
+              onDeselectAll={() => setSelectedIds([])}
+              onToggleSelection={toggleSelection}
+            />
             <AdminPanelSection
               selectedCount={selectedIds.length}
               bulkCategory={bulkCategory}
@@ -246,13 +274,7 @@ function App() {
               onBulkCategoryChange={setBulkCategory}
               onApplyBulkCategory={applyBulkCategory}
               onApplyBulkStatus={applyBulkStatus}
-            />
-
-            <MenuEntriesSection
-              items={items}
-              selectedIds={selectedIds}
-              onSelectAll={() => setSelectedIds(items.map((item) => item.id))}
-              onToggleSelection={toggleSelection}
+              onUpdateItem={updateItem}
             />
           </aside>
         </main>
