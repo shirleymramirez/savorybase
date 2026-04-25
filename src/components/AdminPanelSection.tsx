@@ -116,7 +116,11 @@ function AdminPanelSection({
                 onClick={() => openEditor(item)}
                 className="flex w-full items-center gap-3 rounded-2xl border border-mist-200 bg-mist-50 p-3 text-left transition hover:border-mist-400 hover:bg-white"
               >
-                <img src={item.image} alt={item.name} className="h-14 w-14 rounded-2xl object-cover" />
+                <img
+                  src={item.imageUrl}
+                  alt={item.name}
+                  className="h-14 w-14 rounded-2xl object-cover"
+                />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-mist-900">{item.name}</p>
                   <p className="truncate text-xs text-mist-600">{item.categories.join(" • ")}</p>

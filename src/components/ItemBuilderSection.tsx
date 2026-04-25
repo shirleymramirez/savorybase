@@ -5,8 +5,10 @@ type ItemBuilderSectionProps = {
   draft: DraftFoodItem;
   categories: Category[];
   isDraggingImage: boolean;
+  isSaving: boolean;
+  saveError: string | null;
   onReset: () => void;
-  onSave: () => void;
+  onSave: () => Promise<void>;
   onImageSelect: (event: ChangeEvent<HTMLInputElement>) => void;
   onImageDrop: (event: DragEvent<HTMLDivElement>) => void;
   onImageDragOver: (event: DragEvent<HTMLDivElement>) => void;
@@ -25,6 +27,8 @@ function ItemBuilderSection({
   draft,
   categories,
   isDraggingImage,
+  isSaving,
+  saveError,
   onReset,
   onSave,
   onImageSelect,
@@ -52,6 +56,7 @@ function ItemBuilderSection({
             className="rounded-full border border-mist-300 px-4 py-2 text-sm font-medium text-mist-700 transition hover:border-mist-500 hover:text-mist-900"
             type="button"
             onClick={onReset}
+            disabled={isSaving}
           >
             Reset Form
           </button>
@@ -73,7 +78,7 @@ function ItemBuilderSection({
               >
                 <div className="flex aspect-[4/5] items-center justify-center">
                   <img
-                    src={draft.image}
+                    src={draft.imageUrl}
                     alt="Food preview"
                     className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
                     style={{
@@ -225,17 +230,25 @@ function ItemBuilderSection({
               <button
                 type="button"
                 onClick={onSave}
-                className="flex-1 rounded-full bg-mist-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-mist-700"
+                disabled={isSaving}
+                className="flex-1 rounded-full bg-mist-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-mist-700 disabled:cursor-not-allowed disabled:bg-mist-400"
               >
-                Save Food Item
+                {isSaving ? "Saving..." : "Save Food Item"}
               </button>
               <button
                 type="button"
+                disabled={isSaving}
                 className="rounded-full border border-mist-300 px-5 py-3 text-sm font-medium text-mist-700 transition hover:border-mist-500 hover:text-mist-900"
               >
                 Save as Draft
               </button>
             </div>
+
+            {saveError ? (
+              <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                {saveError}
+              </p>
+            ) : null}
           </div>
         </div>
       </div>

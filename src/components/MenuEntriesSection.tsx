@@ -68,7 +68,7 @@ function MenuEntriesSection({
                   ✓
                 </span>
                 <img
-                  src={item.image}
+                  src={item.imageUrl}
                   alt={item.name}
                   className="h-16 w-16 rounded-[20px] object-cover"
                 />

@@ -15,7 +15,7 @@ export type FoodItem = {
   categories: Category[];
   active: boolean;
   stock: "In Stock" | "Low Stock" | "Sold Out";
-  image: string;
+  imageUrl: string;
 };
 
 export type DraftFoodItem = {
@@ -24,7 +24,7 @@ export type DraftFoodItem = {
   price: string;
   categories: Category[];
   active: boolean;
-  image: string;
+  imageUrl: string;
   cropZoom: number;
   cropX: number;
   cropY: number;

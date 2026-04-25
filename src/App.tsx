@@ -6,6 +6,9 @@ import ItemBuilderSection from "./components/ItemBuilderSection";
 import MenuEntriesSection from "./components/MenuEntriesSection";
 import { Category, DraftFoodItem, FoodItem } from "./types";
 
+const FOODS_API_URL = "/api/foods";
+type FoodApiPayload = Omit<FoodItem, "id" | "categories"> & { category: Category };
+
 const categories: Category[] = [
   "Appetizer",
   "Main Course",
@@ -25,7 +28,7 @@ const starterItems: FoodItem[] = [
     categories: ["Main Course", "Vegan", "Chef Special"],
     active: true,
     stock: "In Stock",
-    image:
+    imageUrl:
       "https://images.unsplash.com/photo-1611250188496-e966043a0629?auto=format&fit=crop&w=900&q=80",
   },
   {
@@ -36,7 +39,7 @@ const starterItems: FoodItem[] = [
     categories: ["Appetizer", "Seasonal"],
     active: true,
     stock: "Low Stock",
-    image:
+    imageUrl:
       "https://images.unsplash.com/photo-1547592166-23ac45744acd?auto=format&fit=crop&w=900&q=80",
   },
   {
@@ -47,7 +50,7 @@ const starterItems: FoodItem[] = [
     categories: ["Dessert"],
     active: false,
     stock: "Sold Out",
-    image:
+    imageUrl:
       "https://images.unsplash.com/photo-1488477181946-6428a0291777?auto=format&fit=crop&w=900&q=80",
   },
 ];
@@ -58,7 +61,7 @@ const emptyDraft: DraftFoodItem = {
   price: "18.00",
   categories: ["Main Course"],
   active: true,
-  image:
+  imageUrl:
     "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1200&q=80",
   cropZoom: 110,
   cropX: 50,
@@ -79,12 +82,61 @@ function readImageFile(file: File, onLoad: (result: string) => void) {
   reader.readAsDataURL(file);
 }
 
+function buildFoodPayload(draft: DraftFoodItem) {
+  const name = draft.name.trim() ? toTitleCase(draft.name.trim()) : "Untitled Dish";
+  const description = draft.description.trim() || "No description added yet.";
+  const price = Number(draft.price) || 0;
+  const active = draft.active;
+  const category = draft.categories[0] ?? "Main Course";
+  const stock: FoodItem["stock"] = active ? "In Stock" : "Sold Out";
+
+  return {
+    name,
+    description,
+    price,
+    category,
+    active,
+    stock,
+    imageUrl: draft.imageUrl,
+  } satisfies FoodApiPayload;
+}
+
+function normalizeFoodItem(food: Partial<FoodItem> & { category?: Category }, fallback: FoodApiPayload): FoodItem {
+  const normalizedCategories =
+    Array.isArray(food.categories) && food.categories.length > 0
+      ? (food.categories as Category[])
+      : food.category
+        ? [food.category]
+        : fallback.category
+          ? [fallback.category]
+          : (["Main Course"] as Category[]);
+
+  return {
+    id: typeof food.id === "number" ? food.id : Date.now(),
+    name: typeof food.name === "string" && food.name.trim() ? food.name : fallback.name,
+    description:
+      typeof food.description === "string" && food.description.trim()
+        ? food.description
+        : fallback.description,
+    price: typeof food.price === "number" ? food.price : fallback.price,
+    categories: normalizedCategories,
+    active: typeof food.active === "boolean" ? food.active : fallback.active,
+    stock:
+      food.stock === "In Stock" || food.stock === "Low Stock" || food.stock === "Sold Out"
+        ? food.stock
+        : fallback.stock,
+    imageUrl: typeof food.imageUrl === "string" && food.imageUrl ? food.imageUrl : fallback.imageUrl,
+  };
+}
+
 function App() {
   const [items, setItems] = useState<FoodItem[]>(starterItems);
   const [selectedIds, setSelectedIds] = useState<number[]>([1, 2]);
   const [draft, setDraft] = useState<DraftFoodItem>(emptyDraft);
   const [bulkCategory, setBulkCategory] = useState<Category>("Seasonal");
   const [isDraggingImage, setIsDraggingImage] = useState(false);
+  const [isSavingItem, setIsSavingItem] = useState(false);
+  const [saveItemError, setSaveItemError] = useState<string | null>(null);
 
   const activeCount = items.filter((item) => item.active).length;
   const lowStockCount = items.filter((item) => item.stock !== "In Stock").length;
@@ -103,7 +155,7 @@ function App() {
     readImageFile(file, (result) => {
       setDraft((current) => ({
         ...current,
-        image: result,
+        imageUrl: result,
       }));
     });
   };
@@ -121,7 +173,7 @@ function App() {
     readImageFile(file, (result) => {
       setDraft((current) => ({
         ...current,
-        image: result,
+        imageUrl: result,
       }));
     });
   };
@@ -138,20 +190,52 @@ function App() {
     });
   };
 
-  const handleSave = () => {
-    const nextItem: FoodItem = {
-      id: Date.now(),
-      name: draft.name.trim() ? toTitleCase(draft.name.trim()) : "Untitled Dish",
-      description: draft.description.trim() || "No description added yet.",
-      price: Number(draft.price) || 0,
-      categories: draft.categories,
-      active: draft.active,
-      stock: draft.active ? "In Stock" : "Sold Out",
-      image: draft.image,
-    };
+  const handleSave = async () => {
+    const payload = buildFoodPayload(draft);
 
-    setItems((current) => [nextItem, ...current]);
-    setDraft(emptyDraft);
+    setIsSavingItem(true);
+    setSaveItemError(null);
+
+    try {
+      const response = await fetch(FOODS_API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error(
+            "Unauthorized. Set a valid API_AUTH_TOKEN in .env and restart the Vite dev server.",
+          );
+        }
+
+        if (response.status === 400) {
+          const errorPayload = (await response.json()) as {
+            message?: string;
+            error?: Array<{ field?: string; message?: string }>;
+          };
+          const validationMessage = errorPayload.error?.[0]?.message || errorPayload.message;
+
+          throw new Error(validationMessage || "Validation failed.");
+        }
+
+        throw new Error(`Request failed with status ${response.status}`);
+      }
+
+      const createdFood = (await response.json()) as Partial<FoodItem> & { category?: Category };
+      const nextItem = normalizeFoodItem(createdFood, payload);
+
+      setItems((current) => [nextItem, ...current]);
+      setDraft(emptyDraft);
+    } catch (error) {
+      setSaveItemError(
+        error instanceof Error ? error.message : "Unable to save this food item right now.",
+      );
+    } finally {
+      setIsSavingItem(false);
+    }
   };
 
   const toggleSelection = (id: number) => {
@@ -226,6 +310,8 @@ function App() {
             draft={draft}
             categories={categories}
             isDraggingImage={isDraggingImage}
+            isSaving={isSavingItem}
+            saveError={saveItemError}
             onReset={() => setDraft(emptyDraft)}
             onSave={handleSave}
             onImageSelect={handleImageSelect}
