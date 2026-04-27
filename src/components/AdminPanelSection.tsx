@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { Category, FoodItem } from "../types";
 
+const FOODS_API_URL = "/api/foods";
+
 type AdminPanelSectionProps = {
   selectedCount: number;
   bulkCategory: Category;
@@ -11,19 +13,28 @@ type AdminPanelSectionProps = {
   onApplyBulkCategory: () => void;
   onApplyBulkStatus: (active: boolean) => void;
   onUpdateItem: (
-    id: number,
-    updates: Pick<FoodItem, "name" | "description" | "price" | "categories" | "active">,
+    id: string | number,
+    updates: Pick<FoodItem, "name" | "description" | "price" | "categories" | "active" | "imageUrl">,
   ) => void;
 };
 
 type EditDraft = {
-  id: number;
+  id: string | number;
   name: string;
   description: string;
   price: string;
   category: Category;
   active: boolean;
+  imageUrl: string;
 };
+
+function readImageFile(file: File, onLoad: (result: string) => void) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    onLoad(String(reader.result));
+  };
+  reader.readAsDataURL(file);
+}
 
 function AdminPanelSection({
   selectedCount,
@@ -37,6 +48,8 @@ function AdminPanelSection({
   onUpdateItem,
 }: AdminPanelSectionProps) {
   const [editDraft, setEditDraft] = useState<EditDraft | null>(null);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [saveEditError, setSaveEditError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!editDraft) {
@@ -57,10 +70,12 @@ function AdminPanelSection({
       price: currentItem.price.toFixed(2),
       category: currentItem.categories[0] ?? categories[0],
       active: currentItem.active,
+      imageUrl: currentItem.imageUrl,
     });
   }, [categories, editDraft?.id, selectedItems]);
 
   const openEditor = (item: FoodItem) => {
+    setSaveEditError(null);
     setEditDraft({
       id: item.id,
       name: item.name,
@@ -68,27 +83,80 @@ function AdminPanelSection({
       price: item.price.toFixed(2),
       category: item.categories[0] ?? categories[0],
       active: item.active,
+      imageUrl: item.imageUrl,
     });
   };
 
   const closeEditor = () => {
+    setSaveEditError(null);
     setEditDraft(null);
   };
 
-  const saveEditor = () => {
+  const saveEditor = async () => {
     if (!editDraft) {
       return;
     }
 
-    onUpdateItem(editDraft.id, {
+    const updates = {
       name: editDraft.name.trim() || "Untitled Dish",
       description: editDraft.description.trim() || "No description added yet.",
       price: Number(editDraft.price) || 0,
       categories: [editDraft.category],
       active: editDraft.active,
-    });
+      imageUrl: editDraft.imageUrl,
+    } satisfies Pick<FoodItem, "name" | "description" | "price" | "categories" | "active" | "imageUrl">;
 
-    closeEditor();
+    const payload = {
+      name: updates.name,
+      description: updates.description,
+      price: updates.price,
+      category: editDraft.category,
+      active: updates.active,
+      stock: updates.active ? "In Stock" : "Sold Out",
+      imageUrl: updates.imageUrl,
+    } as const;
+
+    setIsSavingEdit(true);
+    setSaveEditError(null);
+
+    try {
+      const response = await fetch(`${FOODS_API_URL}/${editDraft.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error(
+            "Unauthorized. Set a valid API_AUTH_TOKEN in .env and restart the Vite dev server.",
+          );
+        }
+
+        if (response.status === 400) {
+          const errorPayload = (await response.json()) as {
+            message?: string;
+            error?: Array<{ field?: string; message?: string }>;
+          };
+          const validationMessage = errorPayload.error?.[0]?.message || errorPayload.message;
+
+          throw new Error(validationMessage || "Validation failed.");
+        }
+
+        throw new Error(`Request failed with status ${response.status}`);
+      }
+
+      onUpdateItem(editDraft.id, updates);
+      closeEditor();
+    } catch (error) {
+      setSaveEditError(
+        error instanceof Error ? error.message : "Unable to update this menu item right now.",
+      );
+    } finally {
+      setIsSavingEdit(false);
+    }
   };
 
   return (
@@ -114,16 +182,35 @@ function AdminPanelSection({
                 key={item.id}
                 type="button"
                 onClick={() => openEditor(item)}
-                className="flex w-full items-center gap-3 rounded-2xl border border-mist-200 bg-mist-50 p-3 text-left transition hover:border-mist-400 hover:bg-white"
+                className="grid w-full gap-4 rounded-[24px] border border-mist-200 bg-mist-50 p-3 text-left transition hover:border-mist-400 hover:bg-white sm:grid-cols-[auto_1fr_auto] sm:items-center"
               >
-                <img
-                  src={item.imageUrl}
-                  alt={item.name}
-                  className="h-14 w-14 rounded-2xl object-cover"
-                />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-mist-900">{item.name}</p>
-                  <p className="truncate text-xs text-mist-600">{item.categories.join(" • ")}</p>
+                <div className="flex items-center gap-3">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full border border-mist-900 bg-mist-900 text-xs text-white">
+                    ✓
+                  </span>
+                  <img
+                    src={item.imageUrl}
+                    alt={item.name}
+                    className="h-16 w-16 rounded-[20px] object-cover"
+                  />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="truncate text-sm font-semibold text-mist-900">{item.name}</p>
+                    <span
+                      className={`rounded-full px-2 py-1 text-[11px] font-medium ${
+                        item.active ? "bg-emerald-100 text-emerald-700" : "bg-mist-200 text-mist-700"
+                      }`}
+                    >
+                      {item.active ? "Active" : "Inactive"}
+                    </span>
+                  </div>
+                  <p className="mt-1 truncate text-sm text-mist-600">{item.description}</p>
+                  <p className="mt-2 truncate text-xs text-mist-500">{item.categories.join(" • ")}</p>
+                </div>
+                <div className="flex items-center justify-between sm:block sm:text-right">
+                  <p className="text-base font-semibold text-mist-900">${item.price.toFixed(2)}</p>
+                  <p className="text-xs text-mist-500">{item.stock}</p>
                 </div>
               </button>
             ))}
@@ -133,7 +220,7 @@ function AdminPanelSection({
 
       {editDraft ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-mist-900/55 px-4 py-6">
-          <div className="w-full max-w-2xl rounded-[32px] border border-white/70 bg-white p-6 shadow-soft sm:p-7">
+          <div className="w-full max-w-4xl rounded-[32px] border border-white/70 bg-white p-6 shadow-soft sm:p-7">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-sm uppercase tracking-[0.22em] text-mist-500">Edit Item</p>
@@ -142,118 +229,177 @@ function AdminPanelSection({
               <button
                 type="button"
                 onClick={closeEditor}
+                disabled={isSavingEdit}
                 className="rounded-full border border-mist-300 px-4 py-2 text-sm font-medium text-mist-700 transition hover:border-mist-500 hover:text-mist-900"
               >
                 Close
               </button>
             </div>
 
-            <div className="mt-6 grid gap-4">
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-mist-700">Name</span>
-                <input
-                  value={editDraft.name}
-                  onChange={(event) =>
-                    setEditDraft((current) =>
-                      current ? { ...current, name: event.target.value } : current,
-                    )
-                  }
-                  className="w-full rounded-2xl border border-mist-200 bg-mist-50 px-4 py-3 text-base text-mist-900 outline-none transition focus:border-mist-500"
-                />
-              </label>
-
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-mist-700">Description</span>
-                <textarea
-                  value={editDraft.description}
-                  onChange={(event) =>
-                    setEditDraft((current) =>
-                      current ? { ...current, description: event.target.value } : current,
-                    )
-                  }
-                  className="min-h-28 w-full resize-none rounded-2xl border border-mist-200 bg-mist-50 px-4 py-3 text-base text-mist-900 outline-none transition focus:border-mist-500"
-                />
-              </label>
-
-              <div className="grid gap-4 sm:grid-cols-2">
+            <div className="mt-6 grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
+              <div className="space-y-4">
                 <label className="block">
-                  <span className="mb-2 block text-sm font-medium text-mist-700">Price</span>
-                  <div className="flex rounded-2xl border border-mist-200 bg-mist-50 focus-within:border-mist-500">
-                    <span className="flex items-center px-4 text-mist-500">$</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={editDraft.price}
-                      onChange={(event) =>
-                        setEditDraft((current) =>
-                          current ? { ...current, price: event.target.value } : current,
-                        )
-                      }
-                      className="w-full rounded-r-2xl bg-transparent py-3 pr-4 text-base text-mist-900 outline-none"
-                    />
+                  <span className="mb-2 block text-sm font-medium text-mist-700">Food Image</span>
+                  <div className="group relative overflow-hidden rounded-[26px] border border-dashed border-mist-300 bg-mist-100/75 transition hover:border-mist-500 hover:bg-mist-100">
+                    <div className="flex aspect-[4/5] items-center justify-center">
+                      <img
+                        src={editDraft.imageUrl}
+                        alt={`${editDraft.name} preview`}
+                        className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
+                      />
+                    </div>
+                    <div className="absolute inset-0 border-[12px] border-white/40" />
+                    <div className="absolute inset-x-4 bottom-4 rounded-2xl bg-white/88 p-4 backdrop-blur">
+                      <p className="text-sm font-medium text-mist-900">Replace menu image</p>
+                      <p className="mt-1 text-xs leading-5 text-mist-600">
+                        Upload a new photo to update how this dish appears in the menu list.
+                      </p>
+                      <label className="mt-3 inline-flex cursor-pointer rounded-full bg-mist-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-mist-700">
+                        Choose Image
+                        <input
+                          className="hidden"
+                          type="file"
+                          accept="image/*"
+                          disabled={isSavingEdit}
+                          onChange={(event) => {
+                            const file = event.target.files?.[0];
+
+                            if (!file) {
+                              return;
+                            }
+
+                            readImageFile(file, (result) => {
+                              setEditDraft((current) =>
+                                current ? { ...current, imageUrl: result } : current,
+                              );
+                            });
+                          }}
+                        />
+                      </label>
+                    </div>
                   </div>
-                </label>
-
-                <label className="block">
-                  <span className="mb-2 block text-sm font-medium text-mist-700">Category</span>
-                  <select
-                    value={editDraft.category}
-                    onChange={(event) =>
-                      setEditDraft((current) =>
-                        current ? { ...current, category: event.target.value as Category } : current,
-                      )
-                    }
-                    className="w-full rounded-2xl border border-mist-200 bg-mist-50 px-4 py-3 text-sm text-mist-900 outline-none transition focus:border-mist-500"
-                  >
-                    {categories.map((category) => (
-                      <option key={category} value={category}>
-                        {category}
-                      </option>
-                    ))}
-                  </select>
                 </label>
               </div>
 
-              <button
-                type="button"
-                onClick={() =>
-                  setEditDraft((current) =>
-                    current ? { ...current, active: !current.active } : current,
-                  )
-                }
-                className={`flex items-center justify-between rounded-2xl border px-4 py-3 transition ${
-                  editDraft.active
-                    ? "border-emerald-200 bg-emerald-50"
-                    : "border-mist-200 bg-mist-100"
-                }`}
-              >
-                <div className="text-left">
-                  <p className="text-sm font-medium text-mist-900">
-                    {editDraft.active ? "Active" : "Inactive"}
-                  </p>
-                  <p className="text-xs text-mist-600">
-                    {editDraft.active ? "Visible on site" : "Hidden from customers"}
-                  </p>
+              <div className="grid gap-4">
+                <label className="block">
+                  <span className="mb-2 block text-sm font-medium text-mist-700">Name</span>
+                  <input
+                    value={editDraft.name}
+                    disabled={isSavingEdit}
+                    onChange={(event) =>
+                      setEditDraft((current) =>
+                        current ? { ...current, name: event.target.value } : current,
+                      )
+                    }
+                    className="w-full rounded-2xl border border-mist-200 bg-mist-50 px-4 py-3 text-base text-mist-900 outline-none transition focus:border-mist-500"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="mb-2 block text-sm font-medium text-mist-700">Description</span>
+                  <textarea
+                    value={editDraft.description}
+                    disabled={isSavingEdit}
+                    onChange={(event) =>
+                      setEditDraft((current) =>
+                        current ? { ...current, description: event.target.value } : current,
+                      )
+                    }
+                    className="min-h-28 w-full resize-none rounded-2xl border border-mist-200 bg-mist-50 px-4 py-3 text-base text-mist-900 outline-none transition focus:border-mist-500"
+                  />
+                </label>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium text-mist-700">Price</span>
+                    <div className="flex rounded-2xl border border-mist-200 bg-mist-50 focus-within:border-mist-500">
+                      <span className="flex items-center px-4 text-mist-500">$</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={editDraft.price}
+                        disabled={isSavingEdit}
+                        onChange={(event) =>
+                          setEditDraft((current) =>
+                            current ? { ...current, price: event.target.value } : current,
+                          )
+                        }
+                        className="w-full rounded-r-2xl bg-transparent py-3 pr-4 text-base text-mist-900 outline-none"
+                      />
+                    </div>
+                  </label>
+
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium text-mist-700">Category</span>
+                    <select
+                      value={editDraft.category}
+                      disabled={isSavingEdit}
+                      onChange={(event) =>
+                        setEditDraft((current) =>
+                          current ? { ...current, category: event.target.value as Category } : current,
+                        )
+                      }
+                      className="w-full rounded-2xl border border-mist-200 bg-mist-50 px-4 py-3 text-sm text-mist-900 outline-none transition focus:border-mist-500"
+                    >
+                      {categories.map((category) => (
+                        <option key={category} value={category}>
+                          {category}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                 </div>
-                <span
-                  className={`relative inline-flex h-8 w-14 items-center rounded-full px-1 transition ${
-                    editDraft.active ? "bg-emerald-500" : "bg-mist-300"
+
+                <button
+                  type="button"
+                  disabled={isSavingEdit}
+                  onClick={() =>
+                    setEditDraft((current) =>
+                      current ? { ...current, active: !current.active } : current,
+                    )
+                  }
+                  className={`flex items-center justify-between rounded-2xl border px-4 py-3 transition ${
+                    editDraft.active
+                      ? "border-emerald-200 bg-emerald-50"
+                      : "border-mist-200 bg-mist-100"
                   }`}
                 >
+                  <div className="text-left">
+                    <p className="text-sm font-medium text-mist-900">
+                      {editDraft.active ? "Active" : "Inactive"}
+                    </p>
+                    <p className="text-xs text-mist-600">
+                      {editDraft.active ? "Visible on site" : "Hidden from customers"}
+                    </p>
+                  </div>
                   <span
-                    className={`h-6 w-6 rounded-full bg-white shadow transition ${
-                      editDraft.active ? "translate-x-6" : "translate-x-0"
+                    className={`relative inline-flex h-8 w-14 items-center rounded-full px-1 transition ${
+                      editDraft.active ? "bg-emerald-500" : "bg-mist-300"
                     }`}
-                  />
-                </span>
-              </button>
+                  >
+                    <span
+                      className={`h-6 w-6 rounded-full bg-white shadow transition ${
+                        editDraft.active ? "translate-x-6" : "translate-x-0"
+                      }`}
+                    />
+                  </span>
+                </button>
+
+                {saveEditError ? (
+                  <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                    {saveEditError}
+                  </p>
+                ) : null}
+              </div>
             </div>
 
             <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
               <button
                 type="button"
                 onClick={closeEditor}
+                disabled={isSavingEdit}
                 className="rounded-full border border-mist-300 px-5 py-3 text-sm font-medium text-mist-700 transition hover:border-mist-500 hover:text-mist-900"
               >
                 Cancel
@@ -261,9 +407,10 @@ function AdminPanelSection({
               <button
                 type="button"
                 onClick={saveEditor}
-                className="rounded-full bg-mist-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-mist-700"
+                disabled={isSavingEdit}
+                className="rounded-full bg-mist-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-mist-700 disabled:cursor-not-allowed disabled:bg-mist-400"
               >
-                Save Changes
+                {isSavingEdit ? "Saving..." : "Save Changes"}
               </button>
             </div>
           </div>

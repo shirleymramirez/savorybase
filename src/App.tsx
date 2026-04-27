@@ -1,4 +1,4 @@
-import { ChangeEvent, DragEvent, useMemo, useState } from "react";
+import { ChangeEvent, DragEvent, useEffect, useMemo, useState } from "react";
 import AdminPanelSection from "./components/AdminPanelSection";
 import FooterSection from "./components/FooterSection";
 import HeaderSection from "./components/HeaderSection";
@@ -8,6 +8,12 @@ import { Category, DraftFoodItem, FoodItem } from "./types";
 
 const FOODS_API_URL = "/api/foods";
 type FoodApiPayload = Omit<FoodItem, "id" | "categories"> & { category: Category };
+type FoodApiItem = Partial<FoodItem> & { category?: Category; _id?: string };
+type FoodApiEnvelope = {
+  data?: FoodApiItem;
+  message?: string;
+  success?: boolean;
+};
 
 const categories: Category[] = [
   "Appetizer",
@@ -17,42 +23,6 @@ const categories: Category[] = [
   "Gluten-Free",
   "Seasonal",
   "Chef Special",
-];
-
-const starterItems: FoodItem[] = [
-  {
-    id: 1,
-    name: "Roasted Cauliflower Tacos",
-    description: "Tahini slaw, charred scallion salsa, pickled onions.",
-    price: 14,
-    categories: ["Main Course", "Vegan", "Chef Special"],
-    active: true,
-    stock: "In Stock",
-    imageUrl:
-      "https://images.unsplash.com/photo-1611250188496-e966043a0629?auto=format&fit=crop&w=900&q=80",
-  },
-  {
-    id: 2,
-    name: "Citrus Burrata Plate",
-    description: "Burrata with blood orange, pistachio and herb oil.",
-    price: 12,
-    categories: ["Appetizer", "Seasonal"],
-    active: true,
-    stock: "Low Stock",
-    imageUrl:
-      "https://images.unsplash.com/photo-1547592166-23ac45744acd?auto=format&fit=crop&w=900&q=80",
-  },
-  {
-    id: 3,
-    name: "Charcoal Lemon Tart",
-    description: "Silky citrus curd with almond crust and sea salt.",
-    price: 9,
-    categories: ["Dessert"],
-    active: false,
-    stock: "Sold Out",
-    imageUrl:
-      "https://images.unsplash.com/photo-1488477181946-6428a0291777?auto=format&fit=crop&w=900&q=80",
-  },
 ];
 
 const emptyDraft: DraftFoodItem = {
@@ -101,7 +71,10 @@ function buildFoodPayload(draft: DraftFoodItem) {
   } satisfies FoodApiPayload;
 }
 
-function normalizeFoodItem(food: Partial<FoodItem> & { category?: Category }, fallback: FoodApiPayload): FoodItem {
+function normalizeFoodItem(
+  food: FoodApiItem,
+  fallback: FoodApiPayload,
+): FoodItem {
   const normalizedCategories =
     Array.isArray(food.categories) && food.categories.length > 0
       ? (food.categories as Category[])
@@ -112,7 +85,12 @@ function normalizeFoodItem(food: Partial<FoodItem> & { category?: Category }, fa
           : (["Main Course"] as Category[]);
 
   return {
-    id: typeof food.id === "number" ? food.id : Date.now(),
+    id:
+      typeof food.id === "string" || typeof food.id === "number"
+        ? food.id
+        : typeof food._id === "string"
+          ? food._id
+          : Date.now(),
     name: typeof food.name === "string" && food.name.trim() ? food.name : fallback.name,
     description:
       typeof food.description === "string" && food.description.trim()
@@ -130,8 +108,8 @@ function normalizeFoodItem(food: Partial<FoodItem> & { category?: Category }, fa
 }
 
 function App() {
-  const [items, setItems] = useState<FoodItem[]>(starterItems);
-  const [selectedIds, setSelectedIds] = useState<number[]>([1, 2]);
+  const [items, setItems] = useState<FoodItem[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Array<string | number>>([]);
   const [draft, setDraft] = useState<DraftFoodItem>(emptyDraft);
   const [bulkCategory, setBulkCategory] = useState<Category>("Seasonal");
   const [isDraggingImage, setIsDraggingImage] = useState(false);
@@ -141,8 +119,16 @@ function App() {
   const activeCount = items.filter((item) => item.active).length;
   const lowStockCount = items.filter((item) => item.stock !== "In Stock").length;
   const averagePrice = useMemo(() => {
+    if (items.length === 0) {
+      return 0;
+    }
+
     const total = items.reduce((sum, item) => sum + item.price, 0);
     return total / items.length;
+  }, [items]);
+
+  useEffect(() => {
+    setSelectedIds((current) => current.filter((id) => items.some((item) => item.id === id)));
   }, [items]);
 
   const handleImageSelect = (event: ChangeEvent<HTMLInputElement>) => {
@@ -224,8 +210,8 @@ function App() {
         throw new Error(`Request failed with status ${response.status}`);
       }
 
-      const createdFood = (await response.json()) as Partial<FoodItem> & { category?: Category };
-      const nextItem = normalizeFoodItem(createdFood, payload);
+      const createdFoodResponse = (await response.json()) as FoodApiEnvelope;
+      const nextItem = normalizeFoodItem(createdFoodResponse.data ?? {}, payload);
 
       setItems((current) => [nextItem, ...current]);
       setDraft(emptyDraft);
@@ -238,7 +224,7 @@ function App() {
     }
   };
 
-  const toggleSelection = (id: number) => {
+  const toggleSelection = (id: string | number) => {
     setSelectedIds((current) =>
       current.includes(id) ? current.filter((entry) => entry !== id) : [...current, id],
     );
@@ -274,8 +260,8 @@ function App() {
   };
 
   const updateItem = (
-    id: number,
-    updates: Pick<FoodItem, "name" | "description" | "price" | "categories" | "active">,
+    id: string | number,
+    updates: Pick<FoodItem, "name" | "description" | "price" | "categories" | "active" | "imageUrl">,
   ) => {
     setItems((current) =>
       current.map((item) =>
@@ -346,6 +332,7 @@ function App() {
           <aside className="space-y-6">
             <MenuEntriesSection
               items={items}
+              onItemsChange={setItems}
               selectedIds={selectedIds}
               onSelectAll={() => setSelectedIds(items.map((item) => item.id))}
               onDeselectAll={() => setSelectedIds([])}

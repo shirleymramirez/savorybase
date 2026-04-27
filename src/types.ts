@@ -8,7 +8,7 @@ export type Category =
   | "Chef Special";
 
 export type FoodItem = {
-  id: number;
+  id: string | number;
   name: string;
   description: string;
   price: number;
