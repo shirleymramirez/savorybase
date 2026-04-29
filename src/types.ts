@@ -25,6 +25,7 @@ export type DraftFoodItem = {
   categories: Category[];
   active: boolean;
   imageUrl: string;
+  imageFile: File | null;
   cropZoom: number;
   cropX: number;
   cropY: number;

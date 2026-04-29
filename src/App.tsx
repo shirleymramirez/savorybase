@@ -33,6 +33,7 @@ const emptyDraft: DraftFoodItem = {
   active: true,
   imageUrl:
     "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1200&q=80",
+  imageFile: null,
   cropZoom: 110,
   cropX: 50,
   cropY: 50,
@@ -69,6 +70,24 @@ function buildFoodPayload(draft: DraftFoodItem) {
     stock,
     imageUrl: draft.imageUrl,
   } satisfies FoodApiPayload;
+}
+
+function buildFoodFormData(draft: DraftFoodItem) {
+  const payload = buildFoodPayload(draft);
+  const formData = new FormData();
+
+  formData.append("name", payload.name);
+  formData.append("description", payload.description);
+  formData.append("price", String(payload.price));
+  formData.append("category", payload.category);
+
+  if (draft.imageFile) {
+    formData.append("image", draft.imageFile);
+  } else {
+    formData.append("imageUrl", payload.imageUrl);
+  }
+
+  return formData;
 }
 
 function normalizeFoodItem(
@@ -142,6 +161,7 @@ function App() {
       setDraft((current) => ({
         ...current,
         imageUrl: result,
+        imageFile: file,
       }));
     });
   };
@@ -160,6 +180,7 @@ function App() {
       setDraft((current) => ({
         ...current,
         imageUrl: result,
+        imageFile: file,
       }));
     });
   };
@@ -183,13 +204,20 @@ function App() {
     setSaveItemError(null);
 
     try {
-      const response = await fetch(FOODS_API_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
+      const requestInit = draft.imageFile
+        ? {
+            method: "POST",
+            body: buildFoodFormData(draft),
+          }
+        : {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(payload),
+          };
+
+      const response = await fetch(FOODS_API_URL, requestInit);
       if (!response.ok) {
         if (response.status === 401) {
           throw new Error(
@@ -339,7 +367,6 @@ function App() {
               onToggleSelection={toggleSelection}
             />
             <AdminPanelSection
-              selectedCount={selectedIds.length}
               bulkCategory={bulkCategory}
               categories={categories}
               lowStockCount={lowStockCount}

@@ -2,9 +2,9 @@ import { useEffect, useState } from "react";
 import { Category, FoodItem } from "../types";
 
 const FOODS_API_URL = "/api/foods";
+const MAX_INLINE_IMAGE_BYTES = 60 * 1024;
 
 type AdminPanelSectionProps = {
-  selectedCount: number;
   bulkCategory: Category;
   categories: Category[];
   lowStockCount: number;
@@ -28,16 +28,60 @@ type EditDraft = {
   imageUrl: string;
 };
 
-function readImageFile(file: File, onLoad: (result: string) => void) {
-  const reader = new FileReader();
-  reader.onload = () => {
-    onLoad(String(reader.result));
-  };
-  reader.readAsDataURL(file);
+async function readImageFile(file: File) {
+  const source = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error("Unable to read the selected image."));
+    reader.readAsDataURL(file);
+  });
+
+  const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const nextImage = new Image();
+    nextImage.onload = () => resolve(nextImage);
+    nextImage.onerror = () => reject(new Error("Unable to process the selected image."));
+    nextImage.src = source;
+  });
+
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d");
+
+  if (!context) {
+    return source;
+  }
+
+  const maxBytes = MAX_INLINE_IMAGE_BYTES;
+  let width = image.width;
+  let height = image.height;
+  let quality = 0.68;
+  let output = source;
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const scale = Math.min(1, 960 / Math.max(width, height));
+    canvas.width = Math.max(1, Math.round(width * scale));
+    canvas.height = Math.max(1, Math.round(height * scale));
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+    output = canvas.toDataURL("image/jpeg", quality);
+
+    if (output.length * 0.75 <= maxBytes) {
+      return output;
+    }
+
+    width = Math.max(240, Math.round(width * 0.76));
+    height = Math.max(240, Math.round(height * 0.76));
+    quality = Math.max(0.28, quality - 0.08);
+  }
+
+  if (output.length * 0.75 > maxBytes) {
+    throw new Error("Image is too large. Please choose a smaller image and try again.");
+  }
+
+  return output;
 }
 
 function AdminPanelSection({
-  selectedCount,
   bulkCategory,
   categories,
   lowStockCount,
@@ -97,6 +141,14 @@ function AdminPanelSection({
       return;
     }
 
+    if (
+      editDraft.imageUrl.startsWith("data:") &&
+      editDraft.imageUrl.length * 0.75 > MAX_INLINE_IMAGE_BYTES
+    ) {
+      setSaveEditError("Image is too large. Please choose a smaller image and try again.");
+      return;
+    }
+
     const updates = {
       name: editDraft.name.trim() || "Untitled Dish",
       description: editDraft.description.trim() || "No description added yet.",
@@ -135,6 +187,10 @@ function AdminPanelSection({
           );
         }
 
+        if (response.status === 413) {
+          throw new Error("Image is too large. Please choose a smaller image and try again.");
+        }
+
         if (response.status === 400) {
           const errorPayload = (await response.json()) as {
             message?: string;
@@ -162,14 +218,9 @@ function AdminPanelSection({
   return (
     <>
       <section className="rounded-[28px] border border-white/70 bg-white/85 p-5 shadow-soft backdrop-blur sm:p-6">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-sm uppercase tracking-[0.22em] text-mist-500">Admin Panel</p>
-            <h2 className="mt-2 font-serif text-3xl text-mist-900">Update Items</h2>
-          </div>
-          <span className="rounded-full bg-mist-100 px-3 py-1 text-xs font-medium text-mist-700">
-            {selectedCount} selected
-          </span>
+        <div>
+          <p className="text-sm uppercase tracking-[0.22em] text-mist-500">Admin Panel</p>
+          <h2 className="mt-2 font-serif text-3xl text-mist-900">Update Items</h2>
         </div>
 
         <div className="mt-5">
@@ -185,9 +236,6 @@ function AdminPanelSection({
                 className="grid w-full gap-4 rounded-[24px] border border-mist-200 bg-mist-50 p-3 text-left transition hover:border-mist-400 hover:bg-white sm:grid-cols-[auto_1fr_auto] sm:items-center"
               >
                 <div className="flex items-center gap-3">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full border border-mist-900 bg-mist-900 text-xs text-white">
-                    ✓
-                  </span>
                   <img
                     src={item.imageUrl}
                     alt={item.name}
@@ -219,8 +267,8 @@ function AdminPanelSection({
       </section>
 
       {editDraft ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-mist-900/55 px-4 py-6">
-          <div className="w-full max-w-4xl rounded-[32px] border border-white/70 bg-white p-6 shadow-soft sm:p-7">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-mist-900/55 px-4 py-6">
+          <div className="mx-auto w-full max-w-4xl rounded-[32px] border border-white/70 bg-white p-6 shadow-soft sm:p-7 max-sm:max-h-[calc(100vh-3rem)] max-sm:overflow-y-auto md:max-h-[calc(100vh-3rem)] md:overflow-y-auto">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-sm uppercase tracking-[0.22em] text-mist-500">Edit Item</p>
@@ -261,18 +309,26 @@ function AdminPanelSection({
                           type="file"
                           accept="image/*"
                           disabled={isSavingEdit}
-                          onChange={(event) => {
+                          onChange={async (event) => {
                             const file = event.target.files?.[0];
 
                             if (!file) {
                               return;
                             }
 
-                            readImageFile(file, (result) => {
+                            try {
+                              const result = await readImageFile(file);
                               setEditDraft((current) =>
                                 current ? { ...current, imageUrl: result } : current,
                               );
-                            });
+                              setSaveEditError(null);
+                            } catch (error) {
+                              setSaveEditError(
+                                error instanceof Error
+                                  ? error.message
+                                  : "Unable to process the selected image.",
+                              );
+                            }
                           }}
                         />
                       </label>
