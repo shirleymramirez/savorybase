@@ -3,14 +3,42 @@ import AdminPanelSection from "./components/AdminPanelSection";
 import FooterSection from "./components/FooterSection";
 import HeaderSection from "./components/HeaderSection";
 import ItemBuilderSection from "./components/ItemBuilderSection";
+import LoginPage from "./components/LoginPage";
 import MenuEntriesSection from "./components/MenuEntriesSection";
+import useLocation from "./hooks/useLocation";
 import { Category, DraftFoodItem, FoodItem } from "./types";
 
+const AUTH_API_URL = "/api/auth/login";
 const FOODS_API_URL = "/api/foods";
+const SESSION_STORAGE_KEY = "savorybase-session";
+const LOGIN_ROUTE = "/login";
+const DASHBOARD_ROUTE = "/dashboard";
 type FoodApiPayload = Omit<FoodItem, "id" | "categories"> & { category: Category };
 type FoodApiItem = Partial<FoodItem> & { category?: Category; _id?: string };
 type FoodApiEnvelope = {
   data?: FoodApiItem;
+  message?: string;
+  success?: boolean;
+};
+type AuthSession = {
+  token: string;
+  username: string;
+};
+type AuthResponse = {
+  token?: string;
+  accessToken?: string;
+  username?: string;
+  user?: {
+    username?: string;
+  };
+  data?: {
+    token?: string;
+    accessToken?: string;
+    username?: string;
+    user?: {
+      username?: string;
+    };
+  };
   message?: string;
   success?: boolean;
 };
@@ -126,7 +154,33 @@ function normalizeFoodItem(
   };
 }
 
+function extractAuthSession(payload: AuthResponse, fallbackUsername: string) {
+  const token =
+    payload.token ||
+    payload.accessToken ||
+    payload.data?.token ||
+    payload.data?.accessToken ||
+    "";
+  const username =
+    payload.username ||
+    payload.user?.username ||
+    payload.data?.username ||
+    payload.data?.user?.username ||
+    fallbackUsername;
+
+  if (!token) {
+    throw new Error("Login succeeded but no session token was returned.");
+  }
+
+  return {
+    token,
+    username,
+  } satisfies AuthSession;
+}
+
 function App() {
+  const [session, setSession] = useState<AuthSession | null>(null);
+  const { route, navigateTo } = useLocation();
   const [items, setItems] = useState<FoodItem[]>([]);
   const [selectedIds, setSelectedIds] = useState<Array<string | number>>([]);
   const [draft, setDraft] = useState<DraftFoodItem>(emptyDraft);
@@ -147,8 +201,68 @@ function App() {
   }, [items]);
 
   useEffect(() => {
+    const storedSession = sessionStorage.getItem(SESSION_STORAGE_KEY);
+
+    if (!storedSession) {
+      return;
+    }
+
+    try {
+      setSession(JSON.parse(storedSession) as AuthSession);
+    } catch {
+      sessionStorage.removeItem(SESSION_STORAGE_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
     setSelectedIds((current) => current.filter((id) => items.some((item) => item.id === id)));
   }, [items]);
+
+  useEffect(() => {
+    const isAuthRoute = route === LOGIN_ROUTE;
+    const isDashboardRoute = route === DASHBOARD_ROUTE;
+
+    if (!session && !isAuthRoute) {
+      navigateTo(LOGIN_ROUTE, "replace");
+      return;
+    }
+
+    if (session && !isDashboardRoute) {
+      navigateTo(DASHBOARD_ROUTE, "replace");
+    }
+  }, [navigateTo, route, session]);
+
+  const handleLogin = async (credentials: { username: string; password: string }) => {
+    const response = await fetch(AUTH_API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify(credentials),
+    });
+
+    const payload = (await response.json()) as AuthResponse;
+
+    if (!response.ok) {
+      throw new Error(payload.message || "Unable to sign in with those credentials.");
+    }
+
+    const nextSession = extractAuthSession(payload, credentials.username);
+    sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(nextSession));
+    setSession(nextSession);
+    navigateTo(DASHBOARD_ROUTE, "replace");
+  };
+
+  const handleLogout = () => {
+    sessionStorage.removeItem(SESSION_STORAGE_KEY);
+    setSession(null);
+    setItems([]);
+    setSelectedIds([]);
+    setDraft(emptyDraft);
+    setSaveItemError(null);
+    navigateTo(LOGIN_ROUTE, "replace");
+  };
 
   const handleImageSelect = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -198,6 +312,11 @@ function App() {
   };
 
   const handleSave = async () => {
+    if (!session) {
+      setSaveItemError("Your session has expired. Please sign in again.");
+      return;
+    }
+
     const payload = buildFoodPayload(draft);
 
     setIsSavingItem(true);
@@ -217,11 +336,19 @@ function App() {
             body: JSON.stringify(payload),
           };
 
-      const response = await fetch(FOODS_API_URL, requestInit);
+      const authorizedRequestInit = {
+        ...requestInit,
+        headers: {
+          ...(requestInit.headers || {}),
+          Authorization: `Bearer ${session.token}`,
+        },
+        credentials: "include" as const,
+      };
+      const response = await fetch(FOODS_API_URL, authorizedRequestInit);
       if (!response.ok) {
         if (response.status === 401) {
           throw new Error(
-            "Unauthorized. Set a valid API_AUTH_TOKEN in .env and restart the Vite dev server.",
+            "Unauthorized. Please sign in again.",
           );
         }
 
@@ -310,6 +437,14 @@ function App() {
 
   const selectedItems = items.filter((item) => selectedIds.includes(item.id));
 
+  if (!session) {
+    return <LoginPage onLogin={handleLogin} />;
+  }
+
+  if (route !== DASHBOARD_ROUTE) {
+    return null;
+  }
+
   return (
     <div className="min-h-screen bg-mist-50 text-mist-900">
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
@@ -317,6 +452,8 @@ function App() {
           itemCount={items.length}
           activeCount={activeCount}
           averagePrice={averagePrice}
+          username={session.username}
+          onLogout={handleLogout}
         />
 
         <main className="mt-6 grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
@@ -359,6 +496,7 @@ function App() {
 
           <aside className="space-y-6">
             <MenuEntriesSection
+              authToken={session.token}
               items={items}
               onItemsChange={setItems}
               selectedIds={selectedIds}
@@ -367,6 +505,7 @@ function App() {
               onToggleSelection={toggleSelection}
             />
             <AdminPanelSection
+              authToken={session.token}
               bulkCategory={bulkCategory}
               categories={categories}
               lowStockCount={lowStockCount}

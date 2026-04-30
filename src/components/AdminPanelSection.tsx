@@ -5,6 +5,7 @@ const FOODS_API_URL = "/api/foods";
 const MAX_INLINE_IMAGE_BYTES = 60 * 1024;
 
 type AdminPanelSectionProps = {
+  authToken: string;
   bulkCategory: Category;
   categories: Category[];
   lowStockCount: number;
@@ -82,6 +83,7 @@ async function readImageFile(file: File) {
 }
 
 function AdminPanelSection({
+  authToken,
   bulkCategory,
   categories,
   lowStockCount,
@@ -176,7 +178,9 @@ function AdminPanelSection({
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
         },
+        credentials: "include",
         body: JSON.stringify(payload),
       });
 

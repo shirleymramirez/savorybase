@@ -4,6 +4,7 @@ import { Category, FoodItem } from "../types";
 const FOODS_API_URL = "/api/foods";
 
 type MenuEntriesSectionProps = {
+  authToken: string;
   items: FoodItem[];
   onItemsChange: (items: FoodItem[]) => void;
   selectedIds: Array<string | number>;
@@ -81,6 +82,7 @@ function extractFoodItems(payload: FoodApiResponse) {
 }
 
 function MenuEntriesSection({
+  authToken,
   items,
   onItemsChange,
   selectedIds,
@@ -107,6 +109,10 @@ function MenuEntriesSection({
       try {
         const response = await fetch(FOODS_API_URL, {
           method: "GET",
+          headers: {
+            Authorization: `Bearer ${authToken}`,
+          },
+          credentials: "include",
         });
 
         if (!response.ok) {
