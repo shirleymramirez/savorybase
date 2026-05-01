@@ -1,5 +1,4 @@
 import { ChangeEvent, DragEvent, useEffect, useMemo, useState } from "react";
-import AdminPanelSection from "./components/AdminPanelSection";
 import FooterSection from "./components/FooterSection";
 import HeaderSection from "./components/HeaderSection";
 import ItemBuilderSection from "./components/ItemBuilderSection";
@@ -184,13 +183,11 @@ function App() {
   const [items, setItems] = useState<FoodItem[]>([]);
   const [selectedIds, setSelectedIds] = useState<Array<string | number>>([]);
   const [draft, setDraft] = useState<DraftFoodItem>(emptyDraft);
-  const [bulkCategory, setBulkCategory] = useState<Category>("Seasonal");
   const [isDraggingImage, setIsDraggingImage] = useState(false);
   const [isSavingItem, setIsSavingItem] = useState(false);
   const [saveItemError, setSaveItemError] = useState<string | null>(null);
 
   const activeCount = items.filter((item) => item.active).length;
-  const lowStockCount = items.filter((item) => item.stock !== "In Stock").length;
   const averagePrice = useMemo(() => {
     if (items.length === 0) {
       return 0;
@@ -385,58 +382,6 @@ function App() {
     );
   };
 
-  const applyBulkStatus = (active: boolean) => {
-    setItems((current) =>
-      current.map((item) =>
-        selectedIds.includes(item.id)
-          ? {
-              ...item,
-              active,
-              stock: active ? "In Stock" : "Sold Out",
-            }
-          : item,
-      ),
-    );
-  };
-
-  const applyBulkCategory = () => {
-    setItems((current) =>
-      current.map((item) =>
-        selectedIds.includes(item.id)
-          ? {
-              ...item,
-              categories: item.categories.includes(bulkCategory)
-                ? item.categories
-                : [...item.categories, bulkCategory],
-            }
-          : item,
-      ),
-    );
-  };
-
-  const updateItem = (
-    id: string | number,
-    updates: Pick<FoodItem, "name" | "description" | "price" | "categories" | "active" | "imageUrl">,
-  ) => {
-    setItems((current) =>
-      current.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              ...updates,
-              stock: updates.active
-                ? item.stock === "Sold Out"
-                  ? "In Stock"
-                  : item.stock
-                : "Sold Out",
-            }
-          : item,
-      ),
-    );
-  };
-
-  const selectedItems = items.filter((item) => selectedIds.includes(item.id));
-
   if (!session) {
     return <LoginPage onLogin={handleLogin} />;
   }
@@ -497,23 +442,13 @@ function App() {
           <aside className="space-y-6">
             <MenuEntriesSection
               authToken={session.token}
+              categories={categories}
               items={items}
               onItemsChange={setItems}
               selectedIds={selectedIds}
               onSelectAll={() => setSelectedIds(items.map((item) => item.id))}
               onDeselectAll={() => setSelectedIds([])}
               onToggleSelection={toggleSelection}
-            />
-            <AdminPanelSection
-              authToken={session.token}
-              bulkCategory={bulkCategory}
-              categories={categories}
-              lowStockCount={lowStockCount}
-              selectedItems={selectedItems}
-              onBulkCategoryChange={setBulkCategory}
-              onApplyBulkCategory={applyBulkCategory}
-              onApplyBulkStatus={applyBulkStatus}
-              onUpdateItem={updateItem}
             />
           </aside>
         </main>
