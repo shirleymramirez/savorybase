@@ -15,21 +15,24 @@ function HeaderSection({
 }: HeaderSectionProps) {
   return (
     <header className="overflow-hidden rounded-[32px] border border-white/70 bg-white/80 shadow-soft backdrop-blur">
-      <div className="grid gap-6 px-6 py-8 lg:grid-cols-[1.4fr_1fr] lg:px-8">
+      <div className="flex gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex items-center gap-4 px-6 py-6 sm:gap-6 sm:px-8">
+            <p className="text-sm uppercase tracking-[0.28em] text-mist-500">SavoryBase</p>
+        </div>
+        <div className="flex flex-row items-center gap-4 px-6 py-6 sm:gap-6 sm:px-8">
+          <p className="text-sm font-medium text-mist-600">Hello {username}</p>
+          <button
+            type="button"
+            onClick={onLogout}
+            className="rounded-full border border-mist-300 px-4 py-2 text-sm font-medium text-mist-700 transition hover:border-mist-500 hover:text-mist-900"
+          >
+            Logout
+          </button>
+        </div>
+      </div>
+
+      {/* <div className="grid gap-6 px-6 py-8 lg:grid-cols-[1.4fr_1fr] lg:px-8">
         <div>
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <p className="text-sm uppercase tracking-[0.28em] text-mist-500">SavoryBase</p>
-              <p className="mt-3 text-sm font-medium text-mist-600">Signed in as {username}</p>
-            </div>
-            <button
-              type="button"
-              onClick={onLogout}
-              className="rounded-full border border-mist-300 px-4 py-2 text-sm font-medium text-mist-700 transition hover:border-mist-500 hover:text-mist-900"
-            >
-              Logout
-            </button>
-          </div>
           <h1 className="mt-3 max-w-2xl font-serif text-4xl leading-tight text-mist-900 sm:text-5xl">
             Food Service Management
           </h1>
@@ -44,7 +47,7 @@ function HeaderSection({
           <MetricCard label="Active" value={String(activeCount).padStart(2, "0")} />
           <MetricCard label="Avg Price" value={`$${averagePrice.toFixed(2)}`} />
         </div>
-      </div>
+      </div> */}
     </header>
   );
 }
