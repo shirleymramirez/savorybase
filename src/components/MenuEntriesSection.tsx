@@ -163,6 +163,7 @@ function MenuEntriesSection({
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [saveEditError, setSaveEditError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | number | null>(null);
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const allItemsSelected = menuItems.length > 0 && selectedIds.length === menuItems.length;
 
@@ -407,6 +408,52 @@ function MenuEntriesSection({
     }
   };
 
+  const deleteAllItems = async () => {
+    const shouldDelete = window.confirm(
+      `Delete all ${menuItems.length} menu items? This cannot be undone.`,
+    );
+
+    if (!shouldDelete) {
+      return;
+    }
+
+    setIsDeletingAll(true);
+    setDeleteError(null);
+
+    try {
+      await Promise.all(
+        menuItems.map(async (item) => {
+          const response = await fetch(`${FOODS_API_URL}/${item.id}`, {
+            method: "DELETE",
+            headers: {
+              Authorization: `Bearer ${authToken}`,
+            },
+            credentials: "include",
+          });
+
+          if (!response.ok) {
+            if (response.status === 401) {
+              throw new Error("Unauthorized. Please sign in again.");
+            }
+
+            throw new Error(`Request failed with status ${response.status}`);
+          }
+        }),
+      );
+
+      setMenuItems([]);
+      onItemsChange([]);
+      onDeselectAll();
+      closeEditor();
+    } catch (error) {
+      setDeleteError(
+        error instanceof Error ? error.message : "Unable to delete all menu items right now.",
+      );
+    } finally {
+      setIsDeletingAll(false);
+    }
+  };
+
   return (
     <>
       <section className="rounded-[28px] border border-white/70 bg-white/85 p-5 shadow-soft backdrop-blur sm:p-6">
@@ -416,13 +463,41 @@ function MenuEntriesSection({
             <h2 className="mt-2 font-serif text-3xl text-mist-900">Current Items</h2>
           </div>
           {allItemsSelected ? (
-            <button
-              type="button"
-              className="text-sm font-medium text-mist-600 transition hover:text-mist-900"
-              onClick={onDeselectAll}
-            >
-              Deselect All
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="text-sm font-medium text-mist-600 transition hover:text-mist-900"
+                onClick={onDeselectAll}
+                disabled={isDeletingAll}
+              >
+                Deselect All
+              </button>
+              <button
+                type="button"
+                onClick={() => void deleteAllItems()}
+                disabled={isDeletingAll}
+                aria-label="Delete all menu items"
+                title="Delete all"
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-rose-200 bg-white text-rose-600 transition hover:border-rose-400 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                  className="h-4 w-4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                >
+                  <path d="M3 6h18" />
+                  <path d="M8 6V4h8v2" />
+                  <path d="M19 6l-1 14H6L5 6" />
+                  <path d="M10 11v5" />
+                  <path d="M14 11v5" />
+                </svg>
+              </button>
+            </div>
           ) : (
             <button
               type="button"
@@ -508,7 +583,8 @@ function MenuEntriesSection({
                     </div>
                     <MenuEntryActions
                       isVisible={selected}
-                      isDisabled={deletingId === item.id}
+                      isDisabled={deletingId === item.id || isDeletingAll}
+                      showDelete={!allItemsSelected}
                       onEdit={() => openEditor(item)}
                       onDelete={() => void deleteItem(item)}
                     />

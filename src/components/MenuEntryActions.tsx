@@ -1,6 +1,7 @@
 type MenuEntryActionsProps = {
   isVisible: boolean;
   isDisabled?: boolean;
+  showDelete?: boolean;
   onEdit: () => void;
   onDelete: () => void;
 };
@@ -8,6 +9,7 @@ type MenuEntryActionsProps = {
 function MenuEntryActions({
   isVisible,
   isDisabled = false,
+  showDelete = true,
   onEdit,
   onDelete,
 }: MenuEntryActionsProps) {
@@ -42,31 +44,33 @@ function MenuEntryActions({
           <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
         </svg>
       </button>
-      <button
-        type="button"
-        onClick={onDelete}
-        disabled={isDisabled}
-        aria-label="Delete menu item"
-        title="Delete"
-        className="flex h-8 w-8 items-center justify-center rounded-full border border-rose-200 bg-white text-rose-600 transition hover:border-rose-400 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        <svg
-          viewBox="0 0 24 24"
-          aria-hidden="true"
-          className="h-4 w-4"
-          fill="none"
-          stroke="currentColor"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="2"
+      {showDelete ? (
+        <button
+          type="button"
+          onClick={onDelete}
+          disabled={isDisabled}
+          aria-label="Delete menu item"
+          title="Delete"
+          className="flex h-8 w-8 items-center justify-center rounded-full border border-rose-200 bg-white text-rose-600 transition hover:border-rose-400 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          <path d="M3 6h18" />
-          <path d="M8 6V4h8v2" />
-          <path d="M19 6l-1 14H6L5 6" />
-          <path d="M10 11v5" />
-          <path d="M14 11v5" />
-        </svg>
-      </button>
+          <svg
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+            className="h-4 w-4"
+            fill="none"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="2"
+          >
+            <path d="M3 6h18" />
+            <path d="M8 6V4h8v2" />
+            <path d="M19 6l-1 14H6L5 6" />
+            <path d="M10 11v5" />
+            <path d="M14 11v5" />
+          </svg>
+        </button>
+      ) : null}
     </div>
   );
 }
