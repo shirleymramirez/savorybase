@@ -628,8 +628,8 @@ function MenuEntriesSection({
                     </div>
                     <div className="absolute inset-0 border-[12px] border-white/40" />
                     <div className="absolute inset-x-4 bottom-4 rounded-2xl bg-white/88 p-4 backdrop-blur">
-                      <p className="text-sm font-medium text-mist-900">Replace menu image</p>
-                      <p className="mt-1 text-xs leading-5 text-mist-600">
+                      <p className="text-sm font-medium text-white">Replace menu image</p>
+                      <p className="mt-1 text-xs leading-5 text-white">
                         Upload a new photo to update how this dish appears in the menu list.
                       </p>
                       <label className="mt-3 inline-flex cursor-pointer rounded-full bg-mist-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-mist-700">

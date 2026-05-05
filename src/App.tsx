@@ -61,9 +61,6 @@ const emptyDraft: DraftFoodItem = {
   imageUrl:
     "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1200&q=80",
   imageFile: null,
-  cropZoom: 110,
-  cropX: 50,
-  cropY: 50,
 };
 
 function toTitleCase(value: string) {
@@ -434,9 +431,6 @@ function App() {
                 active: !current.active,
               }))
             }
-            onCropZoomChange={(value) => setDraft((current) => ({ ...current, cropZoom: value }))}
-            onCropXChange={(value) => setDraft((current) => ({ ...current, cropX: value }))}
-            onCropYChange={(value) => setDraft((current) => ({ ...current, cropY: value }))}
           />
 
           <aside className="space-y-6">
