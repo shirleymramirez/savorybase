@@ -14,6 +14,7 @@ type MenuEntriesSectionProps = {
   onSelectAll: () => void;
   onDeselectAll: () => void;
   onToggleSelection: (id: string | number) => void;
+  onSessionExpired: () => void;
 };
 
 type EditDraft = {
@@ -155,6 +156,7 @@ function MenuEntriesSection({
   onSelectAll,
   onDeselectAll,
   onToggleSelection,
+  onSessionExpired,
 }: MenuEntriesSectionProps) {
   const [menuItems, setMenuItems] = useState<FoodItem[]>(items);
   const [isLoading, setIsLoading] = useState(true);
@@ -211,6 +213,11 @@ function MenuEntriesSection({
         });
 
         if (!response.ok) {
+          if (response.status === 401) {
+            onSessionExpired();
+            return;
+          }
+
           throw new Error(`Request failed with status ${response.status}`);
         }
 
@@ -245,7 +252,7 @@ function MenuEntriesSection({
     return () => {
       ignore = true;
     };
-  }, [authToken, onItemsChange]);
+  }, [authToken, onItemsChange, onSessionExpired]);
 
   const openEditor = (item: FoodItem) => {
     setSaveEditError(null);
@@ -317,7 +324,8 @@ function MenuEntriesSection({
 
       if (!response.ok) {
         if (response.status === 401) {
-          throw new Error("Unauthorized. Please sign in again.");
+          onSessionExpired();
+          return;
         }
 
         if (response.status === 413) {
@@ -386,7 +394,8 @@ function MenuEntriesSection({
 
       if (!response.ok) {
         if (response.status === 401) {
-          throw new Error("Unauthorized. Please sign in again.");
+          onSessionExpired();
+          return;
         }
 
         throw new Error(`Request failed with status ${response.status}`);
@@ -433,7 +442,8 @@ function MenuEntriesSection({
 
           if (!response.ok) {
             if (response.status === 401) {
-              throw new Error("Unauthorized. Please sign in again.");
+              onSessionExpired();
+              throw new Error("SESSION_EXPIRED");
             }
 
             throw new Error(`Request failed with status ${response.status}`);
@@ -446,6 +456,10 @@ function MenuEntriesSection({
       onDeselectAll();
       closeEditor();
     } catch (error) {
+      if (error instanceof Error && error.message === "SESSION_EXPIRED") {
+        return;
+      }
+
       setDeleteError(
         error instanceof Error ? error.message : "Unable to delete all menu items right now.",
       );
@@ -531,33 +545,42 @@ function MenuEntriesSection({
               return (
                 <article
                   key={item.id}
-                  className={`group grid w-full gap-4 rounded-[24px] border p-3 text-left transition sm:grid-cols-[auto_1fr_auto] sm:items-center ${
+                  className={`group grid w-full grid-cols-[auto_1fr] gap-4 rounded-[24px] border p-3 text-left transition sm:grid-cols-[auto_1fr_auto] sm:items-center ${
                     selected
                       ? "border-mist-900 bg-mist-100"
                       : "border-mist-200 bg-mist-50 hover:border-mist-400"
                   }`}
                 >
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => onToggleSelection(item.id)}
-                      aria-label={selected ? "Deselect menu item" : "Select menu item"}
-                      className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs ${
-                        selected
-                          ? "border-mist-900 bg-mist-900 text-white"
-                          : "border-mist-300 text-transparent"
-                      }`}
-                    >
-                      <span aria-hidden="true">✓</span>
-                    </button>
-                    <img
-                      src={item.imageUrl}
-                      alt={item.name}
-                      className="h-16 w-16 rounded-[20px] object-cover"
-                    />
+                  <div className="col-span-2 flex items-center justify-between gap-3 sm:col-span-1 sm:justify-start">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => onToggleSelection(item.id)}
+                        aria-label={selected ? "Deselect menu item" : "Select menu item"}
+                        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs ${
+                          selected
+                            ? "border-mist-900 bg-mist-900 text-white"
+                            : "border-mist-300 text-transparent"
+                        }`}
+                      >
+                        <span aria-hidden="true">✓</span>
+                      </button>
+                      <img
+                        src={item.imageUrl}
+                        alt={item.name}
+                        className="h-16 w-16 shrink-0 rounded-[20px] object-cover"
+                      />
+                    </div>
+
+                    <div className="shrink-0 text-right sm:hidden">
+                      <p className="text-base font-semibold text-mist-900">
+                        ${item.price.toFixed(2)}
+                      </p>
+                      <p className="text-xs text-mist-500">{item.stock}</p>
+                    </div>
                   </div>
 
-                  <div className="min-w-0">
+                  <div className="col-span-2 min-w-0 sm:col-span-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-sm font-semibold text-mist-900">{item.name}</p>
                       <span
@@ -574,8 +597,8 @@ function MenuEntriesSection({
                     <p className="mt-2 text-xs text-mist-500">{item.categories.join(" • ")}</p>
                   </div>
 
-                  <div className="flex items-start justify-between gap-4 sm:block sm:text-right">
-                    <div>
+                  <div className="col-span-2 flex justify-end sm:col-span-1 sm:block sm:text-right">
+                    <div className="hidden sm:block">
                       <p className="text-base font-semibold text-mist-900">
                         ${item.price.toFixed(2)}
                       </p>

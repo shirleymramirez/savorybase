@@ -1,4 +1,4 @@
-import { ChangeEvent, DragEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, DragEvent, useCallback, useEffect, useMemo, useState } from "react";
 import FooterSection from "./components/FooterSection";
 import HeaderSection from "./components/HeaderSection";
 import ItemBuilderSection from "./components/ItemBuilderSection";
@@ -248,7 +248,7 @@ function App() {
     navigateTo(DASHBOARD_ROUTE, "replace");
   };
 
-  const handleLogout = () => {
+  const clearLocalSession = useCallback(() => {
     sessionStorage.removeItem(SESSION_STORAGE_KEY);
     setSession(null);
     setItems([]);
@@ -256,7 +256,15 @@ function App() {
     setDraft(emptyDraft);
     setSaveItemError(null);
     navigateTo(LOGIN_ROUTE, "replace");
+  }, [navigateTo]);
+
+  const handleLogout = () => {
+    clearLocalSession();
   };
+
+  const handleSessionExpired = useCallback(() => {
+    clearLocalSession();
+  }, [clearLocalSession]);
 
   const handleImageSelect = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -341,9 +349,8 @@ function App() {
       const response = await fetch(FOODS_API_URL, authorizedRequestInit);
       if (!response.ok) {
         if (response.status === 401) {
-          throw new Error(
-            "Unauthorized. Please sign in again.",
-          );
+          handleSessionExpired();
+          return;
         }
 
         if (response.status === 400) {
@@ -443,6 +450,7 @@ function App() {
               onSelectAll={() => setSelectedIds(items.map((item) => item.id))}
               onDeselectAll={() => setSelectedIds([])}
               onToggleSelection={toggleSelection}
+              onSessionExpired={handleSessionExpired}
             />
           </aside>
         </main>
