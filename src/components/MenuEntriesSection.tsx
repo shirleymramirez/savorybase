@@ -22,7 +22,7 @@ type EditDraft = {
   name: string;
   description: string;
   price: string;
-  category: Category;
+  categories: Category[];
   active: boolean;
   imageUrl: string;
 };
@@ -190,7 +190,7 @@ function MenuEntriesSection({
       name: currentItem.name,
       description: currentItem.description,
       price: currentItem.price.toFixed(2),
-      category: currentItem.categories[0] ?? categories[0],
+      categories: currentItem.categories.length > 0 ? currentItem.categories : [categories[0]],
       active: currentItem.active,
       imageUrl: currentItem.imageUrl,
     });
@@ -262,7 +262,7 @@ function MenuEntriesSection({
       name: item.name,
       description: item.description,
       price: item.price.toFixed(2),
-      category: item.categories[0] ?? categories[0],
+      categories: item.categories.length > 0 ? item.categories : [categories[0]],
       active: item.active,
       imageUrl: item.imageUrl,
     });
@@ -271,6 +271,24 @@ function MenuEntriesSection({
   const closeEditor = () => {
     setSaveEditError(null);
     setEditDraft(null);
+  };
+
+  const toggleEditCategory = (category: Category) => {
+    setEditDraft((current) => {
+      if (!current) {
+        return current;
+      }
+
+      const categoryExists = current.categories.includes(category);
+      const nextCategories = categoryExists
+        ? current.categories.filter((entry) => entry !== category)
+        : [...current.categories, category];
+
+      return {
+        ...current,
+        categories: nextCategories.length > 0 ? nextCategories : [category],
+      };
+    });
   };
 
   const saveEditor = async () => {
@@ -286,11 +304,14 @@ function MenuEntriesSection({
       return;
     }
 
+    const selectedCategories =
+      editDraft.categories.length > 0 ? editDraft.categories : [categories[0] ?? "Main Course"];
+
     const updates = {
       name: editDraft.name.trim() || "Untitled Dish",
       description: editDraft.description.trim() || "No description added yet.",
       price: Number(editDraft.price) || 0,
-      categories: [editDraft.category],
+      categories: selectedCategories,
       active: editDraft.active,
       imageUrl: editDraft.imageUrl,
     } satisfies Pick<
@@ -302,7 +323,8 @@ function MenuEntriesSection({
       name: updates.name,
       description: updates.description,
       price: updates.price,
-      category: editDraft.category,
+      category: selectedCategories[0],
+      categories: selectedCategories,
       active: updates.active,
       stock: updates.active ? "In Stock" : "Sold Out",
       imageUrl: updates.imageUrl,
@@ -594,7 +616,16 @@ function MenuEntriesSection({
                       </span>
                     </div>
                     <p className="mt-1 text-sm text-mist-600">{item.description}</p>
-                    <p className="mt-2 text-xs text-mist-500">{item.categories.join(" • ")}</p>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {item.categories.map((category) => (
+                        <span
+                          key={category}
+                          className="rounded-full bg-white px-2 py-1 text-[11px] font-medium text-mist-600"
+                        >
+                          {category}
+                        </span>
+                      ))}
+                    </div>
                   </div>
 
                   <div className="col-span-2 flex justify-end sm:col-span-1 sm:block sm:text-right">
@@ -719,84 +750,91 @@ function MenuEntriesSection({
                   />
                 </label>
 
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <label className="block">
-                    <span className="mb-2 block text-sm font-medium text-mist-700">Price</span>
-                    <div className="flex rounded-2xl border border-mist-200 bg-mist-50 focus-within:border-mist-500">
-                      <span className="flex items-center px-4 text-mist-500">$</span>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={editDraft.price}
-                        disabled={isSavingEdit}
-                        onChange={(event) =>
-                          setEditDraft((current) =>
-                            current ? { ...current, price: event.target.value } : current,
-                          )
-                        }
-                        className="w-full rounded-r-2xl bg-transparent py-3 pr-4 text-base text-mist-900 outline-none"
-                      />
-                    </div>
-                  </label>
+                <div className="grid gap-5 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] md:items-start">
+                  <div className="flex flex-col gap-3">
+                    <label className="block">
+                      <span className="mb-2 block text-sm font-medium text-mist-700">Price</span>
+                      <div className="flex rounded-2xl border border-mist-200 bg-mist-50 focus-within:border-mist-500">
+                        <span className="flex items-center px-4 text-mist-500">$</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={editDraft.price}
+                          disabled={isSavingEdit}
+                          onChange={(event) =>
+                            setEditDraft((current) =>
+                              current ? { ...current, price: event.target.value } : current,
+                            )
+                          }
+                          className="w-full rounded-r-2xl bg-transparent py-3 pr-4 text-base text-mist-900 outline-none"
+                        />
+                      </div>
+                    </label>
 
-                  <label className="block">
-                    <span className="mb-2 block text-sm font-medium text-mist-700">Category</span>
-                    <select
-                      value={editDraft.category}
+                    <button
+                      type="button"
                       disabled={isSavingEdit}
-                      onChange={(event) =>
+                      onClick={() =>
                         setEditDraft((current) =>
-                          current
-                            ? { ...current, category: event.target.value as Category }
-                            : current,
+                          current ? { ...current, active: !current.active } : current,
                         )
                       }
-                      className="w-full rounded-2xl border border-mist-200 bg-mist-50 px-4 py-3 text-sm text-mist-900 outline-none transition focus:border-mist-500"
-                    >
-                      {categories.map((category) => (
-                        <option key={category} value={category}>
-                          {category}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-
-                <button
-                  type="button"
-                  disabled={isSavingEdit}
-                  onClick={() =>
-                    setEditDraft((current) =>
-                      current ? { ...current, active: !current.active } : current,
-                    )
-                  }
-                  className={`flex items-center justify-between rounded-2xl border px-4 py-3 transition ${
-                    editDraft.active
-                      ? "border-emerald-200 bg-emerald-50"
-                      : "border-mist-200 bg-mist-100"
-                  }`}
-                >
-                  <div className="text-left">
-                    <p className="text-sm font-medium text-mist-900">
-                      {editDraft.active ? "Active" : "Inactive"}
-                    </p>
-                    <p className="text-xs text-mist-600">
-                      {editDraft.active ? "Visible on site" : "Hidden from customers"}
-                    </p>
-                  </div>
-                  <span
-                    className={`relative inline-flex h-8 w-14 items-center rounded-full px-1 transition ${
-                      editDraft.active ? "bg-emerald-500" : "bg-mist-300"
-                    }`}
-                  >
-                    <span
-                      className={`h-6 w-6 rounded-full bg-white shadow transition ${
-                        editDraft.active ? "translate-x-6" : "translate-x-0"
+                      className={`flex w-full items-center justify-between rounded-2xl border px-4 py-3 transition ${
+                        editDraft.active
+                          ? "border-emerald-200 bg-emerald-50"
+                          : "border-mist-200 bg-mist-100"
                       }`}
-                    />
-                  </span>
-                </button>
+                    >
+                      <div className="text-left">
+                        <p className="text-sm font-medium text-mist-900">
+                          {editDraft.active ? "Active" : "Inactive"}
+                        </p>
+                        <p className="text-xs text-mist-600">
+                          {editDraft.active ? "Visible on site" : "Hidden from customers"}
+                        </p>
+                      </div>
+                      <span
+                        className={`relative inline-flex h-8 w-14 items-center rounded-full px-1 transition ${
+                          editDraft.active ? "bg-emerald-500" : "bg-mist-300"
+                        }`}
+                      >
+                        <span
+                          className={`h-6 w-6 rounded-full bg-white shadow transition ${
+                            editDraft.active ? "translate-x-6" : "translate-x-0"
+                          }`}
+                        />
+                      </span>
+                    </button>
+                  </div>
+
+                  <div>
+                    <span className="mb-2 block text-sm font-medium text-mist-700">Category</span>
+                    <div className="rounded-2xl border border-mist-200 bg-mist-50 p-3">
+                      <div className="flex flex-wrap gap-2">
+                        {categories.map((category) => {
+                          const selected = editDraft.categories.includes(category);
+
+                          return (
+                            <button
+                              key={category}
+                              type="button"
+                              disabled={isSavingEdit}
+                              onClick={() => toggleEditCategory(category)}
+                              className={`rounded-full px-3 py-2 text-sm transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                                selected
+                                  ? "bg-mist-900 text-white"
+                                  : "bg-white text-mist-700 hover:bg-mist-200"
+                              }`}
+                            >
+                              {category}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
                 {saveEditError ? (
                   <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
