@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { Category, FoodItem } from "../types";
+import defaultMenuImage from "../assets/Menus.avif";
 import MenuEntryActions from "./MenuEntryActions";
+import { getResponsiveImageProps } from "../utils/responsiveImages";
 
 const FOODS_API_URL = "/api/foods";
 const MAX_INLINE_IMAGE_BYTES = 60 * 1024;
@@ -123,7 +125,7 @@ function normalizeFoodItem(
     imageUrl:
       typeof food.imageUrl === "string" && food.imageUrl
         ? food.imageUrl
-        : "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1200&q=80",
+        : defaultMenuImage,
   };
 }
 
@@ -567,7 +569,7 @@ function MenuEntriesSection({
               return (
                 <article
                   key={item.id}
-                  className={`group grid w-full grid-cols-[auto_1fr] gap-4 rounded-[24px] border p-3 text-left transition sm:grid-cols-[auto_1fr_auto] sm:items-center ${
+                  className={`group grid w-full grid-cols-[auto_1fr] gap-4 rounded-[24px] border p-3 text-left transition [contain-intrinsic-size:144px] [content-visibility:auto] sm:grid-cols-[auto_1fr_auto] sm:items-center ${
                     selected
                       ? "border-mist-900 bg-mist-100"
                       : "border-mist-200 bg-mist-50 hover:border-mist-400"
@@ -588,8 +590,9 @@ function MenuEntriesSection({
                         <span aria-hidden="true">✓</span>
                       </button>
                       <img
-                        src={item.imageUrl}
+                        {...getResponsiveImageProps(item.imageUrl, "64px")}
                         alt={item.name}
+                        loading="lazy"
                         className="h-16 w-16 shrink-0 rounded-[20px] object-cover"
                       />
                     </div>
@@ -675,8 +678,12 @@ function MenuEntriesSection({
                   <div className="group relative overflow-hidden rounded-[26px] border border-dashed border-mist-300 bg-mist-100/75 transition hover:border-mist-500 hover:bg-mist-100">
                     <div className="flex aspect-[4/5] items-center justify-center">
                       <img
-                        src={editDraft.imageUrl}
+                        {...getResponsiveImageProps(
+                          editDraft.imageUrl,
+                          "(min-width: 1024px) 320px, calc(100vw - 5rem)",
+                        )}
                         alt={`${editDraft.name} preview`}
+                        loading="eager"
                         className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
                       />
                     </div>

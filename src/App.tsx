@@ -5,6 +5,7 @@ import ItemBuilderSection from "./components/ItemBuilderSection";
 import LoginPage from "./components/LoginPage";
 import MenuEntriesSection from "./components/MenuEntriesSection";
 import useLocation from "./hooks/useLocation";
+import defaultMenuImage from "./assets/Menus.avif";
 import { Category, DraftFoodItem, FoodItem } from "./types";
 
 const AUTH_API_URL = "/api/auth/login";
@@ -58,8 +59,7 @@ const emptyDraft: DraftFoodItem = {
   price: "18.00",
   categories: ["Main Course"],
   active: true,
-  imageUrl:
-    "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1200&q=80",
+  imageUrl: defaultMenuImage,
   imageFile: null,
 };
 

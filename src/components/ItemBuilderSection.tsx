@@ -1,5 +1,6 @@
 import { ChangeEvent, DragEvent, ReactNode } from "react";
 import { Category, DraftFoodItem } from "../types";
+import { getResponsiveImageProps } from "../utils/responsiveImages";
 
 type ItemBuilderSectionProps = {
   draft: DraftFoodItem;
@@ -70,8 +71,12 @@ function ItemBuilderSection({
               onDrop={onImageDrop}
             >
               <img
-                src={draft.imageUrl}
+                {...getResponsiveImageProps(
+                  draft.imageUrl,
+                  "(min-width: 1280px) 55vw, (min-width: 640px) calc(100vw - 4rem), calc(100vw - 2rem)",
+                )}
                 alt="Food preview"
+                loading="eager"
                 className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
               />
               <div className="absolute inset-0 border-[12px] border-white/40" />
