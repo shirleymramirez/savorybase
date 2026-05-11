@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Category, FoodItem } from "../types";
-import defaultMenuImage from "../assets/Menus.avif";
 import MenuEntryActions from "./MenuEntryActions";
 import { getResponsiveImageProps } from "../utils/responsiveImages";
 
 const FOODS_API_URL = "/api/foods";
 const MAX_INLINE_IMAGE_BYTES = 60 * 1024;
+const DEFAULT_MENU_IMAGE_URL = "/Menus-800.jpg";
 
 type MenuEntriesSectionProps = {
   authToken: string;
@@ -125,7 +125,7 @@ function normalizeFoodItem(
     imageUrl:
       typeof food.imageUrl === "string" && food.imageUrl
         ? food.imageUrl
-        : defaultMenuImage,
+        : DEFAULT_MENU_IMAGE_URL,
   };
 }
 
@@ -170,6 +170,7 @@ function MenuEntriesSection({
   const [isDeletingAll, setIsDeletingAll] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const allItemsSelected = menuItems.length > 0 && selectedIds.length === menuItems.length;
+  const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds]);
 
   useEffect(() => {
     setMenuItems(items);
@@ -564,7 +565,7 @@ function MenuEntriesSection({
         ) : (
           <div className="mt-5 space-y-3">
             {menuItems.map((item) => {
-              const selected = selectedIds.includes(item.id);
+              const selected = selectedIdSet.has(item.id);
 
               return (
                 <article
@@ -684,6 +685,7 @@ function MenuEntriesSection({
                         )}
                         alt={`${editDraft.name} preview`}
                         loading="eager"
+                        fetchPriority="high"
                         className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
                       />
                     </div>

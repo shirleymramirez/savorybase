@@ -77,10 +77,11 @@ function ItemBuilderSection({
                 )}
                 alt="Food preview"
                 loading="eager"
+                fetchPriority="high"
                 className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
               />
               <div className="absolute inset-0 border-[12px] border-white/40" />
-              <div className="absolute inset-x-4 bottom-4 rounded-2xl bg-white/88 p-4 backdrop-blur sm:flex sm:items-center sm:justify-between sm:gap-4">
+              <div className="absolute inset-x-4 bottom-4 rounded-2xl bg-white/88 p-4 backdrop-blur sm:flex sm:items-center sm:justify-between sm:gap-4 ">
                 <div>
                   <p className="text-sm font-medium text-white">
                     Drag and drop or click to upload

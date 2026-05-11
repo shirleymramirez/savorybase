@@ -7,6 +7,23 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
+    build: {
+      minify: "esbuild",
+      cssMinify: "esbuild",
+      sourcemap: false,
+      reportCompressedSize: true,
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            react: ["react", "react-dom"],
+          },
+        },
+      },
+    },
+    esbuild: {
+      legalComments: "none",
+      drop: mode === "production" ? ["debugger"] : [],
+    },
     server: {
       proxy: {
         "/api": {

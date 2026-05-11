@@ -1,11 +1,18 @@
-import { ChangeEvent, DragEvent, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  ChangeEvent,
+  DragEvent,
+  Suspense,
+  lazy,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import FooterSection from "./components/FooterSection";
 import HeaderSection from "./components/HeaderSection";
 import ItemBuilderSection from "./components/ItemBuilderSection";
 import LoginPage from "./components/LoginPage";
-import MenuEntriesSection from "./components/MenuEntriesSection";
 import useLocation from "./hooks/useLocation";
-import defaultMenuImage from "./assets/Menus.avif";
 import { Category, DraftFoodItem, FoodItem } from "./types";
 
 const AUTH_API_URL = "/api/auth/login";
@@ -13,6 +20,8 @@ const FOODS_API_URL = "/api/foods";
 const SESSION_STORAGE_KEY = "savorybase-session";
 const LOGIN_ROUTE = "/login";
 const DASHBOARD_ROUTE = "/dashboard";
+const DEFAULT_MENU_IMAGE_URL = "/Menus-800.jpg";
+const MenuEntriesSection = lazy(() => import("./components/MenuEntriesSection"));
 type FoodApiPayload = Omit<FoodItem, "id" | "categories"> & { category: Category };
 type FoodApiItem = Partial<FoodItem> & { category?: Category; _id?: string };
 type FoodApiEnvelope = {
@@ -59,7 +68,7 @@ const emptyDraft: DraftFoodItem = {
   price: "18.00",
   categories: ["Main Course"],
   active: true,
-  imageUrl: defaultMenuImage,
+  imageUrl: DEFAULT_MENU_IMAGE_URL,
   imageFile: null,
 };
 
@@ -418,9 +427,9 @@ function App() {
             onImageDrop={handleImageDrop}
             onImageDragOver={(event) => {
               event.preventDefault();
-              setIsDraggingImage(true);
+              setIsDraggingImage((current) => (current ? current : true));
             }}
-            onImageDragLeave={() => setIsDraggingImage(false)}
+            onImageDragLeave={() => setIsDraggingImage((current) => (current ? false : current))}
             onNameChange={(value) =>
               setDraft((current) => ({
                 ...current,
@@ -441,17 +450,30 @@ function App() {
           />
 
           <aside className="space-y-6">
-            <MenuEntriesSection
-              authToken={session.token}
-              categories={categories}
-              items={items}
-              onItemsChange={setItems}
-              selectedIds={selectedIds}
-              onSelectAll={() => setSelectedIds(items.map((item) => item.id))}
-              onDeselectAll={() => setSelectedIds([])}
-              onToggleSelection={toggleSelection}
-              onSessionExpired={handleSessionExpired}
-            />
+            <Suspense
+              fallback={
+                <section className="rounded-[28px] border border-white/70 bg-white/85 p-5 shadow-soft sm:p-6">
+                  <p className="text-sm uppercase tracking-[0.22em] text-mist-500">
+                    Menu Entries
+                  </p>
+                  <div className="mt-5 rounded-[24px] border border-mist-200 bg-mist-50 px-4 py-6 text-sm text-mist-600">
+                    Loading menu entries...
+                  </div>
+                </section>
+              }
+            >
+              <MenuEntriesSection
+                authToken={session.token}
+                categories={categories}
+                items={items}
+                onItemsChange={setItems}
+                selectedIds={selectedIds}
+                onSelectAll={() => setSelectedIds(items.map((item) => item.id))}
+                onDeselectAll={() => setSelectedIds([])}
+                onToggleSelection={toggleSelection}
+                onSessionExpired={handleSessionExpired}
+              />
+            </Suspense>
           </aside>
         </main>
 
