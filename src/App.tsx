@@ -10,8 +10,6 @@ import {
 } from "react";
 import FooterSection from "./components/FooterSection";
 import HeaderSection from "./components/HeaderSection";
-import ItemBuilderSection from "./components/ItemBuilderSection";
-import LoginPage from "./components/LoginPage";
 import useLocation from "./hooks/useLocation";
 import { Category, DraftFoodItem, FoodItem } from "./types";
 
@@ -21,6 +19,8 @@ const SESSION_STORAGE_KEY = "savorybase-session";
 const LOGIN_ROUTE = "/login";
 const DASHBOARD_ROUTE = "/dashboard";
 const DEFAULT_MENU_IMAGE_URL = "/Menus-800.jpg";
+const ItemBuilderSection = lazy(() => import("./components/ItemBuilderSection"));
+const LoginPage = lazy(() => import("./components/LoginPage"));
 const MenuEntriesSection = lazy(() => import("./components/MenuEntriesSection"));
 type FoodApiPayload = Omit<FoodItem, "id" | "categories"> & { category: Category };
 type FoodApiItem = Partial<FoodItem> & { category?: Category; _id?: string };
@@ -183,8 +183,18 @@ function extractAuthSession(payload: AuthResponse, fallbackUsername: string) {
   } satisfies AuthSession;
 }
 
+function readStoredSession() {
+  try {
+    const storedSession = sessionStorage.getItem(SESSION_STORAGE_KEY);
+    return storedSession ? (JSON.parse(storedSession) as AuthSession) : null;
+  } catch {
+    sessionStorage.removeItem(SESSION_STORAGE_KEY);
+    return null;
+  }
+}
+
 function App() {
-  const [session, setSession] = useState<AuthSession | null>(null);
+  const [session, setSession] = useState<AuthSession | null>(() => readStoredSession());
   const { route, navigateTo } = useLocation();
   const [items, setItems] = useState<FoodItem[]>([]);
   const [selectedIds, setSelectedIds] = useState<Array<string | number>>([]);
@@ -202,20 +212,6 @@ function App() {
     const total = items.reduce((sum, item) => sum + item.price, 0);
     return total / items.length;
   }, [items]);
-
-  useEffect(() => {
-    const storedSession = sessionStorage.getItem(SESSION_STORAGE_KEY);
-
-    if (!storedSession) {
-      return;
-    }
-
-    try {
-      setSession(JSON.parse(storedSession) as AuthSession);
-    } catch {
-      sessionStorage.removeItem(SESSION_STORAGE_KEY);
-    }
-  }, []);
 
   useEffect(() => {
     setSelectedIds((current) => current.filter((id) => items.some((item) => item.id === id)));
@@ -396,7 +392,17 @@ function App() {
   };
 
   if (!session) {
-    return <LoginPage onLogin={handleLogin} />;
+    return (
+      <Suspense
+        fallback={
+          <div className="min-h-screen bg-mist-50 px-4 py-10 text-sm text-mist-600">
+            Loading...
+          </div>
+        }
+      >
+        <LoginPage onLogin={handleLogin} />
+      </Suspense>
+    );
   }
 
   if (route !== DASHBOARD_ROUTE) {
@@ -415,39 +421,50 @@ function App() {
         />
 
         <main className="mt-6 grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-          <ItemBuilderSection
-            draft={draft}
-            categories={categories}
-            isDraggingImage={isDraggingImage}
-            isSaving={isSavingItem}
-            saveError={saveItemError}
-            onReset={() => setDraft(emptyDraft)}
-            onSave={handleSave}
-            onImageSelect={handleImageSelect}
-            onImageDrop={handleImageDrop}
-            onImageDragOver={(event) => {
-              event.preventDefault();
-              setIsDraggingImage((current) => (current ? current : true));
-            }}
-            onImageDragLeave={() => setIsDraggingImage((current) => (current ? false : current))}
-            onNameChange={(value) =>
-              setDraft((current) => ({
-                ...current,
-                name: toTitleCase(value),
-              }))
+          <Suspense
+            fallback={
+              <section className="rounded-[28px] border border-white/70 bg-white/85 p-5 shadow-soft sm:p-6">
+                <p className="text-sm uppercase tracking-[0.22em] text-mist-500">Item Builder</p>
+                <div className="mt-5 rounded-[24px] border border-mist-200 bg-mist-50 px-4 py-6 text-sm text-mist-600">
+                  Loading item builder...
+                </div>
+              </section>
             }
-            onDescriptionChange={(value) =>
-              setDraft((current) => ({ ...current, description: value }))
-            }
-            onPriceChange={(value) => setDraft((current) => ({ ...current, price: value }))}
-            onToggleCategory={toggleCategory}
-            onToggleActive={() =>
-              setDraft((current) => ({
-                ...current,
-                active: !current.active,
-              }))
-            }
-          />
+          >
+            <ItemBuilderSection
+              draft={draft}
+              categories={categories}
+              isDraggingImage={isDraggingImage}
+              isSaving={isSavingItem}
+              saveError={saveItemError}
+              onReset={() => setDraft(emptyDraft)}
+              onSave={handleSave}
+              onImageSelect={handleImageSelect}
+              onImageDrop={handleImageDrop}
+              onImageDragOver={(event) => {
+                event.preventDefault();
+                setIsDraggingImage((current) => (current ? current : true));
+              }}
+              onImageDragLeave={() => setIsDraggingImage((current) => (current ? false : current))}
+              onNameChange={(value) =>
+                setDraft((current) => ({
+                  ...current,
+                  name: toTitleCase(value),
+                }))
+              }
+              onDescriptionChange={(value) =>
+                setDraft((current) => ({ ...current, description: value }))
+              }
+              onPriceChange={(value) => setDraft((current) => ({ ...current, price: value }))}
+              onToggleCategory={toggleCategory}
+              onToggleActive={() =>
+                setDraft((current) => ({
+                  ...current,
+                  active: !current.active,
+                }))
+              }
+            />
+          </Suspense>
 
           <aside className="space-y-6">
             <Suspense
