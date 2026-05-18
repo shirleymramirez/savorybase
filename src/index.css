@@ -26,3 +26,10 @@ body {
 input[type="range"] {
   accent-color: #565650;
 }
+
+@media (max-width: 1023px) {
+  .backdrop-blur {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+}

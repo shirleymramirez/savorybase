@@ -4,6 +4,12 @@ import react from "@vitejs/plugin-react";
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, ".", "");
   const apiOrigin = env.API_ORIGIN || "http://localhost:5000";
+  const apiProxy = {
+    "/api": {
+      target: apiOrigin,
+      changeOrigin: true,
+    },
+  };
 
   return {
     plugins: [react()],
@@ -25,12 +31,10 @@ export default defineConfig(({ mode }) => {
       drop: mode === "production" ? ["debugger"] : [],
     },
     server: {
-      proxy: {
-        "/api": {
-          target: apiOrigin,
-          changeOrigin: true,
-        },
-      },
+      proxy: apiProxy,
+    },
+    preview: {
+      proxy: apiProxy,
     },
   };
 });

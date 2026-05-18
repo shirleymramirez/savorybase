@@ -1,16 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { Category, FoodItem } from "../types";
 import MenuEntryActions from "./MenuEntryActions";
-import { getResponsiveImageProps } from "../utils/responsiveImages";
+import {
+  getResponsiveImageProps,
+  getResponsiveWebpSourceProps,
+} from "../utils/responsiveImages";
 
 const FOODS_API_URL = "/api/foods";
 const MAX_INLINE_IMAGE_BYTES = 60 * 1024;
-const DEFAULT_MENU_IMAGE_URL = "/Menus-800.jpg";
 
 type MenuEntriesSectionProps = {
   authToken: string;
   categories: Category[];
   items: FoodItem[];
+  isLoading: boolean;
+  fetchError: string | null;
   onItemsChange: (items: FoodItem[]) => void;
   selectedIds: Array<string | number>;
   onSelectAll: () => void;
@@ -28,14 +32,6 @@ type EditDraft = {
   active: boolean;
   imageUrl: string;
 };
-
-type FoodApiResponse =
-  | Array<Partial<FoodItem> & { category?: Category; _id?: string }>
-  | {
-      data?: Array<Partial<FoodItem> & { category?: Category; _id?: string }>;
-      foods?: Array<Partial<FoodItem> & { category?: Category; _id?: string }>;
-      items?: Array<Partial<FoodItem> & { category?: Category; _id?: string }>;
-    };
 
 async function readImageFile(file: File) {
   const source = await new Promise<string>((resolve, reject) => {
@@ -89,70 +85,12 @@ async function readImageFile(file: File) {
   return output;
 }
 
-function normalizeFoodItem(
-  food: Partial<FoodItem> & { category?: Category; _id?: string },
-  fallbackId: string | number,
-): FoodItem {
-  const categories =
-    Array.isArray(food.categories) && food.categories.length > 0
-      ? (food.categories as Category[])
-      : food.category
-        ? [food.category]
-        : (["Main Course"] as Category[]);
-  const active = typeof food.active === "boolean" ? food.active : true;
-
-  return {
-    id:
-      typeof food.id === "string" || typeof food.id === "number"
-        ? food.id
-        : typeof food._id === "string"
-          ? food._id
-          : fallbackId,
-    name: typeof food.name === "string" && food.name.trim() ? food.name : "Untitled Dish",
-    description:
-      typeof food.description === "string" && food.description.trim()
-        ? food.description
-        : "No description added yet.",
-    price: typeof food.price === "number" ? food.price : 0,
-    categories,
-    active,
-    stock:
-      food.stock === "In Stock" || food.stock === "Low Stock" || food.stock === "Sold Out"
-        ? food.stock
-        : active
-          ? "In Stock"
-          : "Sold Out",
-    imageUrl:
-      typeof food.imageUrl === "string" && food.imageUrl
-        ? food.imageUrl
-        : DEFAULT_MENU_IMAGE_URL,
-  };
-}
-
-function extractFoodItems(payload: FoodApiResponse) {
-  if (Array.isArray(payload)) {
-    return payload;
-  }
-
-  if (Array.isArray(payload.data)) {
-    return payload.data;
-  }
-
-  if (Array.isArray(payload.foods)) {
-    return payload.foods;
-  }
-
-  if (Array.isArray(payload.items)) {
-    return payload.items;
-  }
-
-  return [];
-}
-
 function MenuEntriesSection({
   authToken,
   categories,
   items,
+  isLoading,
+  fetchError,
   onItemsChange,
   selectedIds,
   onSelectAll,
@@ -161,8 +99,6 @@ function MenuEntriesSection({
   onSessionExpired,
 }: MenuEntriesSectionProps) {
   const [menuItems, setMenuItems] = useState<FoodItem[]>(items);
-  const [isLoading, setIsLoading] = useState(true);
-  const [fetchError, setFetchError] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<EditDraft | null>(null);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [saveEditError, setSaveEditError] = useState<string | null>(null);
@@ -198,64 +134,6 @@ function MenuEntriesSection({
       imageUrl: currentItem.imageUrl,
     });
   }, [categories, editDraft?.id, menuItems]);
-
-  useEffect(() => {
-    let ignore = false;
-
-    async function fetchMenuItems() {
-      setIsLoading(true);
-      setFetchError(null);
-
-      try {
-        const response = await fetch(FOODS_API_URL, {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${authToken}`,
-          },
-          credentials: "include",
-        });
-
-        if (!response.ok) {
-          if (response.status === 401) {
-            onSessionExpired();
-            return;
-          }
-
-          throw new Error(`Request failed with status ${response.status}`);
-        }
-
-        const payload = (await response.json()) as FoodApiResponse;
-        const normalizedItems = extractFoodItems(payload).map((item, index) =>
-          normalizeFoodItem(item, `fallback-${index + 1}`),
-        );
-
-        if (ignore) {
-          return;
-        }
-
-        setMenuItems(normalizedItems);
-        onItemsChange(normalizedItems);
-      } catch (error) {
-        if (ignore) {
-          return;
-        }
-
-        setFetchError(
-          error instanceof Error ? error.message : "Unable to load menu entries right now.",
-        );
-      } finally {
-        if (!ignore) {
-          setIsLoading(false);
-        }
-      }
-    }
-
-    void fetchMenuItems();
-
-    return () => {
-      ignore = true;
-    };
-  }, [authToken, onItemsChange, onSessionExpired]);
 
   const openEditor = (item: FoodItem) => {
     setSaveEditError(null);
@@ -564,13 +442,14 @@ function MenuEntriesSection({
           </div>
         ) : (
           <div className="mt-5 space-y-3">
-            {menuItems.map((item) => {
+            {menuItems.map((item, index) => {
               const selected = selectedIdSet.has(item.id);
+              const shouldPrioritizeImage = index < 8;
 
               return (
                 <article
                   key={item.id}
-                  className={`group grid w-full grid-cols-[auto_1fr] gap-4 rounded-[24px] border p-3 text-left transition [contain-intrinsic-size:144px] [content-visibility:auto] sm:grid-cols-[auto_1fr_auto] sm:items-center ${
+                  className={`group grid w-full grid-cols-[auto_1fr] gap-4 rounded-[24px] border p-3 text-left transition [contain:layout_paint_style] sm:grid-cols-[auto_1fr_auto] sm:items-center ${
                     selected
                       ? "border-mist-900 bg-mist-100"
                       : "border-mist-200 bg-mist-50 hover:border-mist-400"
@@ -590,12 +469,16 @@ function MenuEntriesSection({
                       >
                         <span aria-hidden="true">✓</span>
                       </button>
-                      <img
-                        {...getResponsiveImageProps(item.imageUrl, "64px")}
-                        alt={item.name}
-                        loading="lazy"
-                        className="h-16 w-16 shrink-0 rounded-[20px] object-cover"
-                      />
+                      <picture className="contents">
+                        <source {...getResponsiveWebpSourceProps(item.imageUrl, "64px")} />
+                        <img
+                          {...getResponsiveImageProps(item.imageUrl, "64px")}
+                          alt={item.name}
+                          loading={shouldPrioritizeImage ? "eager" : "lazy"}
+                          fetchPriority={shouldPrioritizeImage ? "high" : "auto"}
+                          className="h-16 w-16 shrink-0 rounded-[20px] object-cover"
+                        />
+                      </picture>
                     </div>
 
                     <div className="shrink-0 text-right sm:hidden">
@@ -678,16 +561,24 @@ function MenuEntriesSection({
                   <span className="mb-2 block text-sm font-medium text-mist-700">Food Image</span>
                   <div className="group relative overflow-hidden rounded-[26px] border border-dashed border-mist-300 bg-mist-100/75 transition hover:border-mist-500 hover:bg-mist-100">
                     <div className="flex aspect-[4/5] items-center justify-center">
-                      <img
-                        {...getResponsiveImageProps(
-                          editDraft.imageUrl,
-                          "(min-width: 1024px) 320px, calc(100vw - 5rem)",
-                        )}
-                        alt={`${editDraft.name} preview`}
-                        loading="eager"
-                        fetchPriority="high"
-                        className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
-                      />
+                      <picture className="contents">
+                        <source
+                          {...getResponsiveWebpSourceProps(
+                            editDraft.imageUrl,
+                            "(min-width: 1024px) 320px, calc(100vw - 5rem)",
+                          )}
+                        />
+                        <img
+                          {...getResponsiveImageProps(
+                            editDraft.imageUrl,
+                            "(min-width: 1024px) 320px, calc(100vw - 5rem)",
+                          )}
+                          alt={`${editDraft.name} preview`}
+                          loading="eager"
+                          fetchPriority="high"
+                          className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
+                        />
+                      </picture>
                     </div>
                     <div className="absolute inset-0 border-[12px] border-white/40" />
                     <div className="absolute inset-x-4 bottom-4 rounded-2xl bg-white/88 p-4 backdrop-blur">

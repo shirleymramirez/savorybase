@@ -1,6 +1,9 @@
 import { ChangeEvent, DragEvent, ReactNode } from "react";
 import { Category, DraftFoodItem } from "../types";
-import { getResponsiveImageProps } from "../utils/responsiveImages";
+import {
+  getResponsiveImageProps,
+  getResponsiveWebpSourceProps,
+} from "../utils/responsiveImages";
 
 type ItemBuilderSectionProps = {
   draft: DraftFoodItem;
@@ -39,6 +42,9 @@ function ItemBuilderSection({
   onToggleCategory,
   onToggleActive,
 }: ItemBuilderSectionProps) {
+  const previewImageSizes =
+    "(min-width: 1280px) 55vw, (min-width: 640px) calc(100vw - 4rem), calc(100vw - 2rem)";
+
   return (
     <section className="space-y-6">
       <div className="rounded-[28px] border border-white/70 bg-white/85 p-5 shadow-soft backdrop-blur sm:p-6">
@@ -70,16 +76,16 @@ function ItemBuilderSection({
               onDragLeave={onImageDragLeave}
               onDrop={onImageDrop}
             >
-              <img
-                {...getResponsiveImageProps(
-                  draft.imageUrl,
-                  "(min-width: 1280px) 55vw, (min-width: 640px) calc(100vw - 4rem), calc(100vw - 2rem)",
-                )}
-                alt="Food preview"
-                loading="eager"
-                fetchPriority="high"
-                className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
-              />
+              <picture className="contents">
+                <source {...getResponsiveWebpSourceProps(draft.imageUrl, previewImageSizes)} />
+                <img
+                  {...getResponsiveImageProps(draft.imageUrl, previewImageSizes)}
+                  alt="Food preview"
+                  loading="eager"
+                  fetchPriority="high"
+                  className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
+                />
+              </picture>
               <div className="absolute inset-0 border-[12px] border-white/40" />
               <div className="absolute inset-x-4 bottom-4 rounded-2xl bg-white/88 p-4 backdrop-blur sm:flex sm:items-center sm:justify-between sm:gap-4 ">
                 <div>

@@ -10,6 +10,8 @@ import {
 } from "react";
 import FooterSection from "./components/FooterSection";
 import HeaderSection from "./components/HeaderSection";
+import ItemBuilderSection from "./components/ItemBuilderSection";
+import MenuEntriesSection from "./components/MenuEntriesSection";
 import useLocation from "./hooks/useLocation";
 import { Category, DraftFoodItem, FoodItem } from "./types";
 
@@ -18,10 +20,8 @@ const FOODS_API_URL = "/api/foods";
 const SESSION_STORAGE_KEY = "savorybase-session";
 const LOGIN_ROUTE = "/login";
 const DASHBOARD_ROUTE = "/dashboard";
-const DEFAULT_MENU_IMAGE_URL = "/Menus-800.jpg";
-const ItemBuilderSection = lazy(() => import("./components/ItemBuilderSection"));
+const DEFAULT_MENU_IMAGE_URL = "/Menus-672.jpg";
 const LoginPage = lazy(() => import("./components/LoginPage"));
-const MenuEntriesSection = lazy(() => import("./components/MenuEntriesSection"));
 type FoodApiPayload = Omit<FoodItem, "id" | "categories"> & { category: Category };
 type FoodApiItem = Partial<FoodItem> & { category?: Category; _id?: string };
 type FoodApiEnvelope = {
@@ -29,6 +29,13 @@ type FoodApiEnvelope = {
   message?: string;
   success?: boolean;
 };
+type FoodApiListResponse =
+  | FoodApiItem[]
+  | {
+      data?: FoodApiItem[];
+      foods?: FoodApiItem[];
+      items?: FoodApiItem[];
+    };
 type AuthSession = {
   token: string;
   username: string;
@@ -159,6 +166,61 @@ function normalizeFoodItem(
   };
 }
 
+function normalizeFetchedFoodItem(food: FoodApiItem, fallbackId: string | number): FoodItem {
+  const categories =
+    Array.isArray(food.categories) && food.categories.length > 0
+      ? (food.categories as Category[])
+      : food.category
+        ? [food.category]
+        : (["Main Course"] as Category[]);
+  const active = typeof food.active === "boolean" ? food.active : true;
+
+  return {
+    id:
+      typeof food.id === "string" || typeof food.id === "number"
+        ? food.id
+        : typeof food._id === "string"
+          ? food._id
+          : fallbackId,
+    name: typeof food.name === "string" && food.name.trim() ? food.name : "Untitled Dish",
+    description:
+      typeof food.description === "string" && food.description.trim()
+        ? food.description
+        : "No description added yet.",
+    price: typeof food.price === "number" ? food.price : 0,
+    categories,
+    active,
+    stock:
+      food.stock === "In Stock" || food.stock === "Low Stock" || food.stock === "Sold Out"
+        ? food.stock
+        : active
+          ? "In Stock"
+          : "Sold Out",
+    imageUrl:
+      typeof food.imageUrl === "string" && food.imageUrl ? food.imageUrl : DEFAULT_MENU_IMAGE_URL,
+  };
+}
+
+function extractFoodItems(payload: FoodApiListResponse) {
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  if (Array.isArray(payload.data)) {
+    return payload.data;
+  }
+
+  if (Array.isArray(payload.foods)) {
+    return payload.foods;
+  }
+
+  if (Array.isArray(payload.items)) {
+    return payload.items;
+  }
+
+  return [];
+}
+
 function extractAuthSession(payload: AuthResponse, fallbackUsername: string) {
   const token =
     payload.token ||
@@ -202,6 +264,8 @@ function App() {
   const [isDraggingImage, setIsDraggingImage] = useState(false);
   const [isSavingItem, setIsSavingItem] = useState(false);
   const [saveItemError, setSaveItemError] = useState<string | null>(null);
+  const [isLoadingItems, setIsLoadingItems] = useState(false);
+  const [fetchItemsError, setFetchItemsError] = useState<string | null>(null);
 
   const activeCount = items.filter((item) => item.active).length;
   const averagePrice = useMemo(() => {
@@ -260,6 +324,8 @@ function App() {
     setSelectedIds([]);
     setDraft(emptyDraft);
     setSaveItemError(null);
+    setFetchItemsError(null);
+    setIsLoadingItems(false);
     navigateTo(LOGIN_ROUTE, "replace");
   }, [navigateTo]);
 
@@ -270,6 +336,65 @@ function App() {
   const handleSessionExpired = useCallback(() => {
     clearLocalSession();
   }, [clearLocalSession]);
+
+  useEffect(() => {
+    if (!session || route !== DASHBOARD_ROUTE) {
+      return;
+    }
+
+    const abortController = new AbortController();
+    const authToken = session.token;
+
+    async function fetchMenuItems() {
+      setIsLoadingItems(true);
+      setFetchItemsError(null);
+
+      try {
+        const response = await fetch(FOODS_API_URL, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${authToken}`,
+          },
+          credentials: "include",
+          signal: abortController.signal,
+        });
+
+        if (!response.ok) {
+          if (response.status === 401) {
+            handleSessionExpired();
+            return;
+          }
+
+          throw new Error(`Request failed with status ${response.status}`);
+        }
+
+        const payload = (await response.json()) as FoodApiListResponse;
+        const normalizedItems = extractFoodItems(payload).map((item, index) =>
+          normalizeFetchedFoodItem(item, `fallback-${index + 1}`),
+        );
+
+        setItems(normalizedItems);
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
+
+        setFetchItemsError(
+          error instanceof Error ? error.message : "Unable to load menu entries right now.",
+        );
+      } finally {
+        if (!abortController.signal.aborted) {
+          setIsLoadingItems(false);
+        }
+      }
+    }
+
+    void fetchMenuItems();
+
+    return () => {
+      abortController.abort();
+    };
+  }, [handleSessionExpired, route, session]);
 
   const handleImageSelect = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -421,76 +546,54 @@ function App() {
         />
 
         <main className="mt-6 grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-          <Suspense
-            fallback={
-              <section className="rounded-[28px] border border-white/70 bg-white/85 p-5 shadow-soft sm:p-6">
-                <p className="text-sm uppercase tracking-[0.22em] text-mist-500">Item Builder</p>
-                <div className="mt-5 rounded-[24px] border border-mist-200 bg-mist-50 px-4 py-6 text-sm text-mist-600">
-                  Loading item builder...
-                </div>
-              </section>
+          <ItemBuilderSection
+            draft={draft}
+            categories={categories}
+            isDraggingImage={isDraggingImage}
+            isSaving={isSavingItem}
+            saveError={saveItemError}
+            onReset={() => setDraft(emptyDraft)}
+            onSave={handleSave}
+            onImageSelect={handleImageSelect}
+            onImageDrop={handleImageDrop}
+            onImageDragOver={(event) => {
+              event.preventDefault();
+              setIsDraggingImage((current) => (current ? current : true));
+            }}
+            onImageDragLeave={() => setIsDraggingImage((current) => (current ? false : current))}
+            onNameChange={(value) =>
+              setDraft((current) => ({
+                ...current,
+                name: toTitleCase(value),
+              }))
             }
-          >
-            <ItemBuilderSection
-              draft={draft}
-              categories={categories}
-              isDraggingImage={isDraggingImage}
-              isSaving={isSavingItem}
-              saveError={saveItemError}
-              onReset={() => setDraft(emptyDraft)}
-              onSave={handleSave}
-              onImageSelect={handleImageSelect}
-              onImageDrop={handleImageDrop}
-              onImageDragOver={(event) => {
-                event.preventDefault();
-                setIsDraggingImage((current) => (current ? current : true));
-              }}
-              onImageDragLeave={() => setIsDraggingImage((current) => (current ? false : current))}
-              onNameChange={(value) =>
-                setDraft((current) => ({
-                  ...current,
-                  name: toTitleCase(value),
-                }))
-              }
-              onDescriptionChange={(value) =>
-                setDraft((current) => ({ ...current, description: value }))
-              }
-              onPriceChange={(value) => setDraft((current) => ({ ...current, price: value }))}
-              onToggleCategory={toggleCategory}
-              onToggleActive={() =>
-                setDraft((current) => ({
-                  ...current,
-                  active: !current.active,
-                }))
-              }
-            />
-          </Suspense>
+            onDescriptionChange={(value) =>
+              setDraft((current) => ({ ...current, description: value }))
+            }
+            onPriceChange={(value) => setDraft((current) => ({ ...current, price: value }))}
+            onToggleCategory={toggleCategory}
+            onToggleActive={() =>
+              setDraft((current) => ({
+                ...current,
+                active: !current.active,
+              }))
+            }
+          />
 
           <aside className="space-y-6">
-            <Suspense
-              fallback={
-                <section className="rounded-[28px] border border-white/70 bg-white/85 p-5 shadow-soft sm:p-6">
-                  <p className="text-sm uppercase tracking-[0.22em] text-mist-500">
-                    Menu Entries
-                  </p>
-                  <div className="mt-5 rounded-[24px] border border-mist-200 bg-mist-50 px-4 py-6 text-sm text-mist-600">
-                    Loading menu entries...
-                  </div>
-                </section>
-              }
-            >
-              <MenuEntriesSection
-                authToken={session.token}
-                categories={categories}
-                items={items}
-                onItemsChange={setItems}
-                selectedIds={selectedIds}
-                onSelectAll={() => setSelectedIds(items.map((item) => item.id))}
-                onDeselectAll={() => setSelectedIds([])}
-                onToggleSelection={toggleSelection}
-                onSessionExpired={handleSessionExpired}
-              />
-            </Suspense>
+            <MenuEntriesSection
+              authToken={session.token}
+              categories={categories}
+              items={items}
+              isLoading={isLoadingItems}
+              fetchError={fetchItemsError}
+              onItemsChange={setItems}
+              selectedIds={selectedIds}
+              onSelectAll={() => setSelectedIds(items.map((item) => item.id))}
+              onDeselectAll={() => setSelectedIds([])}
+              onToggleSelection={toggleSelection}
+              onSessionExpired={handleSessionExpired}
+            />
           </aside>
         </main>
 
