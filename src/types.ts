@@ -3,7 +3,6 @@ export type Category =
   | "Main Course"
   | "Dessert"
   | "Vegan"
-  | "Gluten-Free"
   | "Seasonal"
   | "Chef Special";
 
@@ -14,6 +13,7 @@ export type FoodItem = {
   price: number;
   categories: Category[];
   active: boolean;
+  inventoryAvailable: number;
   stock: "In Stock" | "Low Stock" | "Sold Out";
   imageUrl: string;
 };
@@ -24,6 +24,7 @@ export type DraftFoodItem = {
   price: string;
   categories: Category[];
   active: boolean;
+  inventoryAvailable: string;
   imageUrl: string;
   imageFile: File | null;
 };

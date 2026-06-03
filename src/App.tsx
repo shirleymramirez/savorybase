@@ -64,7 +64,6 @@ const categories: Category[] = [
   "Main Course",
   "Dessert",
   "Vegan",
-  "Gluten-Free",
   "Seasonal",
   "Chef Special",
 ];
@@ -75,6 +74,7 @@ const emptyDraft: DraftFoodItem = {
   price: "18.00",
   categories: ["Main Course"],
   active: true,
+  inventoryAvailable: "24",
   imageUrl: DEFAULT_MENU_IMAGE_URL,
   imageFile: null,
 };
@@ -99,7 +99,14 @@ function buildFoodPayload(draft: DraftFoodItem) {
   const price = Number(draft.price) || 0;
   const active = draft.active;
   const category = draft.categories[0] ?? "Main Course";
-  const stock: FoodItem["stock"] = active ? "In Stock" : "Sold Out";
+  const inventoryAvailable = Math.max(0, Number(draft.inventoryAvailable) || 0);
+  const stock: FoodItem["stock"] = !active
+    ? "Sold Out"
+    : inventoryAvailable === 0
+      ? "Sold Out"
+      : inventoryAvailable <= 5
+        ? "Low Stock"
+        : "In Stock";
 
   return {
     name,
@@ -107,6 +114,7 @@ function buildFoodPayload(draft: DraftFoodItem) {
     price,
     category,
     active,
+    inventoryAvailable,
     stock,
     imageUrl: draft.imageUrl,
   } satisfies FoodApiPayload;
@@ -120,6 +128,7 @@ function buildFoodFormData(draft: DraftFoodItem) {
   formData.append("description", payload.description);
   formData.append("price", String(payload.price));
   formData.append("category", payload.category);
+  formData.append("inventoryAvailable", String(payload.inventoryAvailable));
 
   if (draft.imageFile) {
     formData.append("image", draft.imageFile);
@@ -158,6 +167,10 @@ function normalizeFoodItem(
     price: typeof food.price === "number" ? food.price : fallback.price,
     categories: normalizedCategories,
     active: typeof food.active === "boolean" ? food.active : fallback.active,
+    inventoryAvailable:
+      typeof food.inventoryAvailable === "number"
+        ? food.inventoryAvailable
+        : fallback.inventoryAvailable,
     stock:
       food.stock === "In Stock" || food.stock === "Low Stock" || food.stock === "Sold Out"
         ? food.stock
@@ -174,6 +187,8 @@ function normalizeFetchedFoodItem(food: FoodApiItem, fallbackId: string | number
         ? [food.category]
         : (["Main Course"] as Category[]);
   const active = typeof food.active === "boolean" ? food.active : true;
+  const inventoryAvailable =
+    typeof food.inventoryAvailable === "number" ? food.inventoryAvailable : active ? 24 : 0;
 
   return {
     id:
@@ -190,11 +205,16 @@ function normalizeFetchedFoodItem(food: FoodApiItem, fallbackId: string | number
     price: typeof food.price === "number" ? food.price : 0,
     categories,
     active,
+    inventoryAvailable,
     stock:
       food.stock === "In Stock" || food.stock === "Low Stock" || food.stock === "Sold Out"
         ? food.stock
         : active
-          ? "In Stock"
+          ? inventoryAvailable === 0
+            ? "Sold Out"
+            : inventoryAvailable <= 5
+              ? "Low Stock"
+              : "In Stock"
           : "Sold Out",
     imageUrl:
       typeof food.imageUrl === "string" && food.imageUrl ? food.imageUrl : DEFAULT_MENU_IMAGE_URL,
@@ -571,6 +591,9 @@ function App() {
               setDraft((current) => ({ ...current, description: value }))
             }
             onPriceChange={(value) => setDraft((current) => ({ ...current, price: value }))}
+            onInventoryAvailableChange={(value) =>
+              setDraft((current) => ({ ...current, inventoryAvailable: value }))
+            }
             onToggleCategory={toggleCategory}
             onToggleActive={() =>
               setDraft((current) => ({

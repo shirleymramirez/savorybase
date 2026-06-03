@@ -20,6 +20,7 @@ type ItemBuilderSectionProps = {
   onNameChange: (value: string) => void;
   onDescriptionChange: (value: string) => void;
   onPriceChange: (value: string) => void;
+  onInventoryAvailableChange: (value: string) => void;
   onToggleCategory: (category: Category) => void;
   onToggleActive: () => void;
 };
@@ -39,6 +40,7 @@ function ItemBuilderSection({
   onNameChange,
   onDescriptionChange,
   onPriceChange,
+  onInventoryAvailableChange,
   onToggleCategory,
   onToggleActive,
 }: ItemBuilderSectionProps) {
@@ -193,33 +195,50 @@ function ItemBuilderSection({
                 />
               </div>
 
-              <Field
-                label="Category"
-                hint="Multi-select tags for front-end filtering."
-                input={
-                  <div className="rounded-2xl border border-mist-200 bg-mist-50 p-3">
-                    <div className="flex flex-wrap gap-2">
-                      {categories.map((category) => {
-                        const selected = draft.categories.includes(category);
-                        return (
-                          <button
-                            key={category}
-                            type="button"
-                            onClick={() => onToggleCategory(category)}
-                            className={`rounded-full px-3 py-2 text-sm transition ${
-                              selected
-                                ? "bg-mist-900 text-white"
-                                : "bg-white text-mist-700 hover:bg-mist-200"
-                            }`}
-                          >
-                            {category}
-                          </button>
-                        );
-                      })}
+              <div className="flex flex-col gap-3">
+                <Field
+                  label="Category"
+                  hint="Multi-select tags for front-end filtering."
+                  input={
+                    <div className="rounded-2xl border border-mist-200 bg-mist-50 p-3">
+                      <div className="flex flex-wrap gap-2">
+                        {categories.map((category) => {
+                          const selected = draft.categories.includes(category);
+                          return (
+                            <button
+                              key={category}
+                              type="button"
+                              onClick={() => onToggleCategory(category)}
+                              className={`rounded-full px-3 py-2 text-sm transition ${
+                                selected
+                                  ? "bg-mist-900 text-white"
+                                  : "bg-white text-mist-700 hover:bg-mist-200"
+                              }`}
+                            >
+                              {category}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                }
-              />
+                  }
+                />
+
+                <Field
+                  label="Inventory Available"
+                  hint="Units currently ready to sell."
+                  input={
+                    <input
+                      className="w-full rounded-2xl border border-mist-200 bg-mist-50 px-4 py-3 text-base text-mist-900 outline-none transition focus:border-mist-500"
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={draft.inventoryAvailable}
+                      onChange={(event) => onInventoryAvailableChange(event.target.value)}
+                    />
+                  }
+                />
+              </div>
             </div>
 
             <div className="mt-1 flex flex-col gap-3 sm:flex-row sm:justify-end">

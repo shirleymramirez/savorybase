@@ -30,6 +30,7 @@ type EditDraft = {
   price: string;
   categories: Category[];
   active: boolean;
+  inventoryAvailable: string;
   imageUrl: string;
 };
 
@@ -131,6 +132,7 @@ function MenuEntriesSection({
       price: currentItem.price.toFixed(2),
       categories: currentItem.categories.length > 0 ? currentItem.categories : [categories[0]],
       active: currentItem.active,
+      inventoryAvailable: String(currentItem.inventoryAvailable),
       imageUrl: currentItem.imageUrl,
     });
   }, [categories, editDraft?.id, menuItems]);
@@ -145,6 +147,7 @@ function MenuEntriesSection({
       price: item.price.toFixed(2),
       categories: item.categories.length > 0 ? item.categories : [categories[0]],
       active: item.active,
+      inventoryAvailable: String(item.inventoryAvailable),
       imageUrl: item.imageUrl,
     });
   };
@@ -194,10 +197,17 @@ function MenuEntriesSection({
       price: Number(editDraft.price) || 0,
       categories: selectedCategories,
       active: editDraft.active,
+      inventoryAvailable: Math.max(0, Number(editDraft.inventoryAvailable) || 0),
       imageUrl: editDraft.imageUrl,
     } satisfies Pick<
       FoodItem,
-      "name" | "description" | "price" | "categories" | "active" | "imageUrl"
+      | "name"
+      | "description"
+      | "price"
+      | "categories"
+      | "active"
+      | "inventoryAvailable"
+      | "imageUrl"
     >;
 
     const payload = {
@@ -207,7 +217,14 @@ function MenuEntriesSection({
       category: selectedCategories[0],
       categories: selectedCategories,
       active: updates.active,
-      stock: updates.active ? "In Stock" : "Sold Out",
+      inventoryAvailable: updates.inventoryAvailable,
+      stock: !updates.active
+        ? "Sold Out"
+        : updates.inventoryAvailable === 0
+          ? "Sold Out"
+          : updates.inventoryAvailable <= 5
+            ? "Low Stock"
+            : "In Stock",
       imageUrl: updates.imageUrl,
     } as const;
 
@@ -249,11 +266,13 @@ function MenuEntriesSection({
       }
 
       const nextItems: FoodItem[] = menuItems.map((item) => {
-        const nextStock: FoodItem["stock"] = updates.active
-          ? item.stock === "Sold Out"
-            ? "In Stock"
-            : item.stock
-          : "Sold Out";
+        const nextStock: FoodItem["stock"] = !updates.active
+          ? "Sold Out"
+          : updates.inventoryAvailable === 0
+            ? "Sold Out"
+            : updates.inventoryAvailable <= 5
+              ? "Low Stock"
+              : "In Stock";
 
         return item.id === editDraft.id
           ? {
@@ -449,7 +468,7 @@ function MenuEntriesSection({
               return (
                 <article
                   key={item.id}
-                  className={`group grid w-full grid-cols-[auto_1fr] gap-4 rounded-[24px] border p-3 text-left transition [contain:layout_paint_style] sm:grid-cols-[auto_1fr_auto] sm:items-center ${
+                  className={`group grid w-full grid-cols-[auto_1fr] gap-4 rounded-[24px] border p-3 text-left transition [contain:layout_paint_style] sm:grid-cols-[auto_1fr_auto] sm:items-stretch ${
                     selected
                       ? "border-mist-900 bg-mist-100"
                       : "border-mist-200 bg-mist-50 hover:border-mist-400"
@@ -489,7 +508,7 @@ function MenuEntriesSection({
                     </div>
                   </div>
 
-                  <div className="col-span-2 min-w-0 sm:col-span-1">
+                  <div className="col-span-2 flex min-w-0 flex-col sm:col-span-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-sm font-semibold text-mist-900">{item.name}</p>
                       <span
@@ -515,7 +534,7 @@ function MenuEntriesSection({
                     </div>
                   </div>
 
-                  <div className="col-span-2 flex justify-end sm:col-span-1 sm:block sm:text-right">
+                  <div className="col-span-2 flex flex-col items-end justify-end sm:col-span-1 sm:text-right">
                     <div className="hidden sm:block">
                       <p className="text-base font-semibold text-mist-900">
                         ${item.price.toFixed(2)}
@@ -529,6 +548,14 @@ function MenuEntriesSection({
                       onEdit={() => openEditor(item)}
                       onDelete={() => void deleteItem(item)}
                     />
+                    <div className="mt-2 inline-flex min-w-28 items-baseline justify-end gap-2 rounded-full border border-mist-200 bg-white px-3 py-1.5 shadow-sm sm:mt-auto">
+                      <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-mist-500">
+                        Remaining
+                      </span>
+                      <span className="text-sm font-semibold text-mist-900">
+                        {item.inventoryAvailable.toLocaleString()}
+                      </span>
+                    </div>
                   </div>
                 </article>
               );
@@ -670,6 +697,27 @@ function MenuEntriesSection({
                           className="w-full rounded-r-2xl bg-transparent py-3 pr-4 text-base text-mist-900 outline-none"
                         />
                       </div>
+                    </label>
+
+                    <label className="block">
+                      <span className="mb-2 block text-sm font-medium text-mist-700">
+                        Inventory Available
+                      </span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={editDraft.inventoryAvailable}
+                        disabled={isSavingEdit}
+                        onChange={(event) =>
+                          setEditDraft((current) =>
+                            current
+                              ? { ...current, inventoryAvailable: event.target.value }
+                              : current,
+                          )
+                        }
+                        className="w-full rounded-2xl border border-mist-200 bg-mist-50 px-4 py-3 text-base text-mist-900 outline-none transition focus:border-mist-500"
+                      />
                     </label>
 
                     <button
