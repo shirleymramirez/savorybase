@@ -22,8 +22,17 @@ const LOGIN_ROUTE = "/login";
 const DASHBOARD_ROUTE = "/dashboard";
 const DEFAULT_MENU_IMAGE_URL = "/Menus-672.jpg";
 const LoginPage = lazy(() => import("./components/LoginPage"));
-type FoodApiPayload = Omit<FoodItem, "id" | "categories"> & { category: Category };
-type FoodApiItem = Partial<FoodItem> & { category?: Category; _id?: string };
+type FoodApiPayload = Omit<FoodItem, "id" | "categories"> & {
+  category: Category;
+  originalInventory?: number;
+  remainingInventory?: number;
+};
+type FoodApiItem = Partial<FoodItem> & {
+  category?: Category;
+  _id?: string;
+  inventory?: number;
+  inventoryAvailable?: number;
+};
 type FoodApiEnvelope = {
   data?: FoodApiItem;
   message?: string;
@@ -115,6 +124,8 @@ function buildFoodPayload(draft: DraftFoodItem) {
     category,
     active,
     inventoryAvailable,
+    originalInventory: inventoryAvailable,
+    remainingInventory: inventoryAvailable,
     stock,
     imageUrl: draft.imageUrl,
   } satisfies FoodApiPayload;
@@ -129,6 +140,8 @@ function buildFoodFormData(draft: DraftFoodItem) {
   formData.append("price", String(payload.price));
   formData.append("category", payload.category);
   formData.append("inventoryAvailable", String(payload.inventoryAvailable));
+  formData.append("originalInventory", String(payload.originalInventory ?? payload.inventoryAvailable));
+  formData.append("remainingInventory", String(payload.remainingInventory ?? payload.inventoryAvailable));
 
   if (draft.imageFile) {
     formData.append("image", draft.imageFile);
@@ -143,6 +156,12 @@ function normalizeFoodItem(
   food: FoodApiItem,
   fallback: FoodApiPayload,
 ): FoodItem {
+  const inventoryAvailable =
+    typeof food.inventory === "number"
+      ? food.inventory
+      : typeof food.inventoryAvailable === "number"
+        ? food.inventoryAvailable
+        : fallback.inventoryAvailable;
   const normalizedCategories =
     Array.isArray(food.categories) && food.categories.length > 0
       ? (food.categories as Category[])
@@ -167,10 +186,7 @@ function normalizeFoodItem(
     price: typeof food.price === "number" ? food.price : fallback.price,
     categories: normalizedCategories,
     active: typeof food.active === "boolean" ? food.active : fallback.active,
-    inventoryAvailable:
-      typeof food.inventoryAvailable === "number"
-        ? food.inventoryAvailable
-        : fallback.inventoryAvailable,
+    inventoryAvailable,
     stock:
       food.stock === "In Stock" || food.stock === "Low Stock" || food.stock === "Sold Out"
         ? food.stock
@@ -188,7 +204,11 @@ function normalizeFetchedFoodItem(food: FoodApiItem, fallbackId: string | number
         : (["Main Course"] as Category[]);
   const active = typeof food.active === "boolean" ? food.active : true;
   const inventoryAvailable =
-    typeof food.inventoryAvailable === "number" ? food.inventoryAvailable : active ? 24 : 0;
+    typeof food.inventory === "number"
+      ? food.inventory
+      : typeof food.inventoryAvailable === "number"
+        ? food.inventoryAvailable
+        : 0;
 
   return {
     id:
@@ -357,15 +377,12 @@ function App() {
     clearLocalSession();
   }, [clearLocalSession]);
 
-  useEffect(() => {
-    if (!session || route !== DASHBOARD_ROUTE) {
-      return;
-    }
+  const fetchMenuItems = useCallback(
+    async (signal?: AbortSignal) => {
+      if (!session || route !== DASHBOARD_ROUTE) {
+        return [] as FoodItem[];
+      }
 
-    const abortController = new AbortController();
-    const authToken = session.token;
-
-    async function fetchMenuItems() {
       setIsLoadingItems(true);
       setFetchItemsError(null);
 
@@ -373,16 +390,16 @@ function App() {
         const response = await fetch(FOODS_API_URL, {
           method: "GET",
           headers: {
-            Authorization: `Bearer ${authToken}`,
+            Authorization: `Bearer ${session.token}`,
           },
           credentials: "include",
-          signal: abortController.signal,
+          signal,
         });
 
         if (!response.ok) {
           if (response.status === 401) {
             handleSessionExpired();
-            return;
+            return [] as FoodItem[];
           }
 
           throw new Error(`Request failed with status ${response.status}`);
@@ -394,27 +411,43 @@ function App() {
         );
 
         setItems(normalizedItems);
+        return normalizedItems;
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") {
-          return;
+          return [] as FoodItem[];
         }
 
         setFetchItemsError(
           error instanceof Error ? error.message : "Unable to load menu entries right now.",
         );
+        return [] as FoodItem[];
       } finally {
-        if (!abortController.signal.aborted) {
+        if (!signal || !signal.aborted) {
           setIsLoadingItems(false);
         }
       }
+    },
+    [handleSessionExpired, route, session],
+  );
+
+  useEffect(() => {
+    if (!session || route !== DASHBOARD_ROUTE) {
+      return;
     }
 
-    void fetchMenuItems();
+    const abortController = new AbortController();
+
+    void fetchMenuItems(abortController.signal);
+
+    const syncInterval = window.setInterval(() => {
+      void fetchMenuItems();
+    }, 15000);
 
     return () => {
       abortController.abort();
+      window.clearInterval(syncInterval);
     };
-  }, [handleSessionExpired, route, session]);
+  }, [fetchMenuItems, route, session]);
 
   const handleImageSelect = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];

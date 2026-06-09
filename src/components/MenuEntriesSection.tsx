@@ -34,6 +34,15 @@ type EditDraft = {
   imageUrl: string;
 };
 
+type BackendFoodRecord = {
+  inventory?: number;
+  inventoryAvailable?: number;
+  data?: {
+    inventory?: number;
+    inventoryAvailable?: number;
+  };
+};
+
 async function readImageFile(file: File) {
   const source = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -137,10 +146,11 @@ function MenuEntriesSection({
     });
   }, [categories, editDraft?.id, menuItems]);
 
-  const openEditor = (item: FoodItem) => {
+  const openEditor = async (item: FoodItem) => {
     setSaveEditError(null);
     setDeleteError(null);
-    setEditDraft({
+
+    const initialDraft: EditDraft = {
       id: item.id,
       name: item.name,
       description: item.description,
@@ -149,7 +159,48 @@ function MenuEntriesSection({
       active: item.active,
       inventoryAvailable: String(item.inventoryAvailable),
       imageUrl: item.imageUrl,
-    });
+    };
+
+    setEditDraft(initialDraft);
+
+    try {
+      const response = await fetch(`${FOODS_API_URL}/${item.id}`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+        },
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          onSessionExpired();
+          return;
+        }
+
+        return;
+      }
+
+      const payload = (await response.json()) as BackendFoodRecord | { data?: BackendFoodRecord };
+      const record = ("data" in payload && payload.data ? payload.data : payload) as BackendFoodRecord;
+      const backendInventory =
+        typeof record.inventory === "number"
+          ? record.inventory
+          : typeof record.inventoryAvailable === "number"
+            ? record.inventoryAvailable
+            : initialDraft.inventoryAvailable;
+
+      setEditDraft((current) =>
+        current && current.id === item.id
+          ? {
+              ...current,
+              inventoryAvailable: String(backendInventory),
+            }
+          : current,
+      );
+    } catch {
+      // Keep the existing local inventory value if the backend fetch fails.
+    }
   };
 
   const closeEditor = () => {
@@ -708,15 +759,11 @@ function MenuEntriesSection({
                         min="0"
                         step="1"
                         value={editDraft.inventoryAvailable}
+                        readOnly
                         disabled={isSavingEdit}
-                        onChange={(event) =>
-                          setEditDraft((current) =>
-                            current
-                              ? { ...current, inventoryAvailable: event.target.value }
-                              : current,
-                          )
-                        }
                         className="w-full rounded-2xl border border-mist-200 bg-mist-50 px-4 py-3 text-base text-mist-900 outline-none transition focus:border-mist-500"
+                        aria-label="Inventory available"
+                        title="Inventory is synced from the backend"
                       />
                     </label>
 
