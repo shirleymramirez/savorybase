@@ -268,7 +268,10 @@ function MenuEntriesSection({
       category: selectedCategories[0],
       categories: selectedCategories,
       active: updates.active,
+      inventory: updates.inventoryAvailable,
       inventoryAvailable: updates.inventoryAvailable,
+      originalInventory: updates.inventoryAvailable,
+      remainingInventory: updates.inventoryAvailable,
       stock: !updates.active
         ? "Sold Out"
         : updates.inventoryAvailable === 0
@@ -599,12 +602,12 @@ function MenuEntriesSection({
                       onEdit={() => openEditor(item)}
                       onDelete={() => void deleteItem(item)}
                     />
-                    <div className="mt-2 inline-flex min-w-28 items-baseline justify-end gap-2 rounded-full border border-mist-200 bg-white px-3 py-1.5 shadow-sm sm:mt-auto">
+                    <div className="mt-2 flex flex-col items-end gap-1 rounded-2xl border border-mist-200 bg-white px-3 py-2 shadow-sm sm:mt-auto">
                       <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-mist-500">
-                        Remaining
+                        Original / Remaining
                       </span>
                       <span className="text-sm font-semibold text-mist-900">
-                        {item.inventoryAvailable.toLocaleString()}
+                        {(item.originalInventory ?? item.inventoryAvailable).toLocaleString()} / {(item.remainingInventory ?? item.inventoryAvailable).toLocaleString()}
                       </span>
                     </div>
                   </div>

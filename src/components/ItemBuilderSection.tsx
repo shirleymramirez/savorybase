@@ -197,7 +197,7 @@ function ItemBuilderSection({
 
               <div className="flex flex-col gap-3">
                 <Field
-                  label="Category"
+                  label="Categories"
                   hint="Multi-select tags for front-end filtering."
                   input={
                     <div className="rounded-2xl border border-mist-200 bg-mist-50 p-3">

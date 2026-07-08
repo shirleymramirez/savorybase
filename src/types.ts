@@ -14,6 +14,8 @@ export type FoodItem = {
   categories: Category[];
   active: boolean;
   inventoryAvailable: number;
+  originalInventory: number;
+  remainingInventory: number;
   stock: "In Stock" | "Low Stock" | "Sold Out";
   imageUrl: string;
 };
@@ -25,6 +27,8 @@ export type DraftFoodItem = {
   categories: Category[];
   active: boolean;
   inventoryAvailable: string;
+  originalInventory: string;
+  remainingInventory: string;
   imageUrl: string;
   imageFile: File | null;
 };
