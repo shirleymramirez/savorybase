@@ -26,6 +26,7 @@ type FoodApiPayload = Omit<FoodItem, "id"> & {
   category: Category;
   categories: Category[];
   inventory?: number;
+  inventoryAvailable?: number;
   originalInventory?: number;
   remainingInventory?: number;
 };
