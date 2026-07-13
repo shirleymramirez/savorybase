@@ -37,9 +37,13 @@ type EditDraft = {
 type BackendFoodRecord = {
   inventory?: number;
   inventoryAvailable?: number;
+  originalInventory?: number;
+  remainingInventory?: number;
   data?: {
     inventory?: number;
     inventoryAvailable?: number;
+    originalInventory?: number;
+    remainingInventory?: number;
   };
 };
 
@@ -188,7 +192,34 @@ function MenuEntriesSection({
           ? record.inventory
           : typeof record.inventoryAvailable === "number"
             ? record.inventoryAvailable
-            : initialDraft.inventoryAvailable;
+            : Number(initialDraft.inventoryAvailable) || 0;
+      const backendOriginalInventory =
+        typeof record.originalInventory === "number"
+          ? record.originalInventory
+          : typeof record.data?.originalInventory === "number"
+            ? record.data.originalInventory
+            : undefined;
+      const backendRemainingInventory =
+        typeof record.remainingInventory === "number"
+          ? record.remainingInventory
+          : typeof record.data?.remainingInventory === "number"
+            ? record.data.remainingInventory
+            : undefined;
+
+      setMenuItems((currentItems) =>
+        currentItems.map((entry) =>
+          entry.id === item.id
+            ? {
+                ...entry,
+                inventoryAvailable: backendInventory,
+                originalInventory:
+                  backendOriginalInventory ?? entry.originalInventory ?? backendInventory,
+                remainingInventory:
+                  backendRemainingInventory ?? entry.remainingInventory ?? backendInventory,
+              }
+            : entry,
+        ),
+      );
 
       setEditDraft((current) =>
         current && current.id === item.id
@@ -206,6 +237,13 @@ function MenuEntriesSection({
   const closeEditor = () => {
     setSaveEditError(null);
     setEditDraft(null);
+  };
+
+  const handleInventoryChange = (value: string) => {
+    const sanitizedValue = value.replace(/\D/g, "");
+    const nextValue = sanitizedValue === "" ? "" : String(Math.max(0, Number.parseInt(sanitizedValue, 10) || 0));
+
+    setEditDraft((current) => (current ? { ...current, inventoryAvailable: nextValue } : current));
   };
 
   const toggleEditCategory = (category: Category) => {
@@ -231,6 +269,8 @@ function MenuEntriesSection({
       return;
     }
 
+    const inventoryPreview = Math.max(0, Number(editDraft.inventoryAvailable) || 0);
+
     if (
       editDraft.imageUrl.startsWith("data:") &&
       editDraft.imageUrl.length * 0.75 > MAX_INLINE_IMAGE_BYTES
@@ -248,7 +288,7 @@ function MenuEntriesSection({
       price: Number(editDraft.price) || 0,
       categories: selectedCategories,
       active: editDraft.active,
-      inventoryAvailable: Math.max(0, Number(editDraft.inventoryAvailable) || 0),
+      inventoryAvailable: inventoryPreview,
       imageUrl: editDraft.imageUrl,
     } satisfies Pick<
       FoodItem,
@@ -319,12 +359,43 @@ function MenuEntriesSection({
         throw new Error(`Request failed with status ${response.status}`);
       }
 
+      let persistedInventoryAvailable: number | undefined;
+      let persistedOriginalInventory: number | undefined;
+      let persistedRemainingInventory: number | undefined;
+
+      try {
+        const responsePayload = (await response.json()) as BackendFoodRecord | { data?: BackendFoodRecord };
+        const persistedRecord = ("data" in responsePayload && responsePayload.data
+          ? responsePayload.data
+          : responsePayload) as BackendFoodRecord;
+
+        persistedInventoryAvailable =
+          typeof persistedRecord.inventoryAvailable === "number"
+            ? persistedRecord.inventoryAvailable
+            : typeof persistedRecord.inventory === "number"
+              ? persistedRecord.inventory
+              : undefined;
+        persistedOriginalInventory =
+          typeof persistedRecord.originalInventory === "number"
+            ? persistedRecord.originalInventory
+            : undefined;
+        persistedRemainingInventory =
+          typeof persistedRecord.remainingInventory === "number"
+            ? persistedRecord.remainingInventory
+            : undefined;
+      } catch {
+        // Fall back to the locally calculated inventory values if the backend does not return a payload.
+      }
+
       const nextItems: FoodItem[] = menuItems.map((item) => {
+        const nextInventoryAvailable = persistedInventoryAvailable ?? updates.inventoryAvailable;
+        const nextOriginalInventory = persistedOriginalInventory ?? updates.inventoryAvailable;
+        const nextRemainingInventory = persistedRemainingInventory ?? updates.inventoryAvailable;
         const nextStock: FoodItem["stock"] = !updates.active
           ? "Sold Out"
-          : updates.inventoryAvailable === 0
+          : nextRemainingInventory === 0
             ? "Sold Out"
-            : updates.inventoryAvailable <= 5
+            : nextRemainingInventory <= 5
               ? "Low Stock"
               : "In Stock";
 
@@ -332,6 +403,9 @@ function MenuEntriesSection({
           ? {
               ...item,
               ...updates,
+              inventoryAvailable: nextInventoryAvailable,
+              originalInventory: nextOriginalInventory,
+              remainingInventory: nextRemainingInventory,
               stock: nextStock,
             }
           : item;
@@ -762,12 +836,17 @@ function MenuEntriesSection({
                         min="0"
                         step="1"
                         value={editDraft.inventoryAvailable}
-                        readOnly
                         disabled={isSavingEdit}
+                        onChange={(event) => handleInventoryChange(event.target.value)}
                         className="w-full rounded-2xl border border-mist-200 bg-mist-50 px-4 py-3 text-base text-mist-900 outline-none transition focus:border-mist-500"
                         aria-label="Inventory available"
-                        title="Inventory is synced from the backend"
+                        title="Enter the current quantity available to sell"
                       />
+                      <p className="mt-2 text-xs text-mist-600">
+                        {Math.max(0, Number(editDraft.inventoryAvailable) || 0) === 0
+                          ? "This item will be marked as sold out after saving."
+                          : `Current stock will be ${Math.max(0, Number(editDraft.inventoryAvailable) || 0).toLocaleString()} after saving.`}
+                      </p>
                     </label>
 
                     <button
